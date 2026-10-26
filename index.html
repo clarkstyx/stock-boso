@@ -64,6 +64,23 @@ svg.spark{width:92px;height:26px;display:block}
 .legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:78ch}
 .legend b{color:var(--fg);font-weight:600}
 details summary{cursor:pointer;color:var(--accent);font-size:13px}
+td.t{cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+td.t:hover{color:var(--accent)}
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.dtitle{font-family:var(--mono);font-size:18px;font-weight:600}
+.dgrid{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,2fr);gap:14px}
+@media (max-width:820px){.dgrid{grid-template-columns:1fr}}
+.charts{min-width:0;display:grid;gap:4px}
+canvas.cv-price{width:100%;height:300px;display:block}
+canvas.cv-rsi{width:100%;height:90px;display:block}
+.legend2{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted)}
+.legend2 i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+.legend2 i.band{height:10px;background:var(--accent);opacity:.18}
+.notes{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px;min-width:0}
+.notes li{padding:6px 8px 6px 12px;border-left:3px solid var(--line);background:var(--bg);border-radius:0 4px 4px 0}
+.notes li.ok{border-left-color:var(--up)} .notes li.bad{border-left-color:var(--down)} .notes li.mid{border-left-color:var(--warn)}
+.notes li.verdict{border-left-color:var(--fg);background:var(--chip)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -115,6 +132,21 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
       <tbody id="rows"></tbody>
     </table>
   </div>
+
+  <section id="detail" class="detail" hidden>
+    <div class="dhead">
+      <div><span id="d-title" class="dtitle">—</span> <span id="d-sub" class="sub"></span></div>
+      <button id="d-close" class="ghost">Close</button>
+    </div>
+    <div class="dgrid">
+      <div class="charts">
+        <canvas id="cv-price" class="cv-price"></canvas>
+        <canvas id="cv-rsi" class="cv-rsi"></canvas>
+        <div class="legend2"><span><i style="background:var(--accent)"></i>SMA20</span><span><i style="background:var(--muted)"></i>SMA50</span><span><i class="band"></i>20-day high/low</span><span><i style="background:var(--up)"></i>up day</span><span><i style="background:var(--down)"></i>down day</span></div>
+      </div>
+      <ul id="d-notes" class="notes"></ul>
+    </div>
+  </section>
 
   <details>
     <summary>How the columns and setup labels are computed</summary>
@@ -200,8 +232,110 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
     return {t,setup,setupCls:cls,setupRank:rank,edays,earnDate:earnDate||'',score,align,breakdown,
       price:last,d1:pct(last,bars[n-2].c),d5:pct(last,bars[n-6].c),d20,
       rsQ,rsS,atr:atrP,rsi,sma20:pct(last,sma20),sma50:pct(last,sma50),
-      rng:h20===l20?50:(last-l20)/(h20-l20)*100,dvol,vr,spark:tail(bars,20,'c'),lastDate:bars[n-1].d};
+      rng:h20===l20?50:(last-l20)/(h20-l20)*100,dvol,vr,spark:tail(bars,20,'c'),lastDate:bars[n-1].d,
+      // raw values kept for the chart panel
+      bars,raw:{sma20,sma50,sma20prev,atr,h20,l20,distSma20,up,sc}};
   }
+
+  // ---------- chart panel: real bars, SMA20/50, 20-day range, RSI, and notes ----------
+  function series(bars){
+    const sma=(n)=>bars.map((_,i)=>i<n-1?null:mean(bars.slice(i-n+1,i+1).map(b=>b.c)));
+    const rsi=[]; let g=0,l=0;
+    for(let i=0;i<bars.length;i++){
+      if(i===0){rsi.push(null);continue;} const d=bars[i].c-bars[i-1].c;
+      if(i<=14){g+=Math.max(d,0);l+=Math.max(-d,0); rsi.push(i===14?(l===0?100:100-100/(1+(g/14)/(l/14))):null); if(i===14){g/=14;l/=14;} continue;}
+      g=(g*13+Math.max(d,0))/14; l=(l*13+Math.max(-d,0))/14; rsi.push(l===0?100:100-100/(1+g/l));
+    }
+    return {sma20:sma(20),sma50:sma(50),rsi};
+  }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function setupCanvas(cv){
+    const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+    cv.width=w*dpr; cv.height=h*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    return {ctx,w,h};
+  }
+  function drawChart(r){
+    const bars=r.bars.slice(-120), s=series(r.bars), off=r.bars.length-bars.length;
+    const sma20=s.sma20.slice(off), sma50=s.sma50.slice(off), rsiS=s.rsi.slice(off);
+    const fg=css('--fg'), muted=css('--muted'), line=css('--line'), accent=css('--accent'), up=css('--up'), down=css('--down'), warn=css('--warn');
+    const font='11px '+css('--mono');
+
+    // ---- price panel ----
+    const P=setupCanvas($('cv-price')), ctx=P.ctx, padL=8, padR=58, padT=10, padB=22, W=P.w-padL-padR, H=P.h-padT-padB;
+    const all=bars.flatMap(b=>[b.h,b.l]).concat(sma50.filter(x=>x!=null)); const mn=Math.min(...all)*.985, mx=Math.max(...all)*1.015;
+    const x=i=>padL+i/(bars.length-1)*W, y=v=>padT+(1-(v-mn)/(mx-mn))*H;
+    ctx.font=font; ctx.textBaseline='middle';
+    // grid + y labels
+    ctx.strokeStyle=line; ctx.fillStyle=muted; ctx.lineWidth=1;
+    for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4, yy=y(v); ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(padL+W,yy); ctx.stroke(); ctx.fillText(v.toFixed(v>100?0:2),padL+W+6,yy);}
+    // x labels: first of each month
+    ctx.textBaseline='top';
+    bars.forEach((b,i)=>{ if(i>0&&b.d.slice(0,7)!==bars[i-1].d.slice(0,7)){ ctx.fillText(new Date(b.d+'T12:00').toLocaleString('en',{month:'short'}),x(i)-10,padT+H+6); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(x(i),padT); ctx.lineTo(x(i),padT+H); ctx.stroke(); }});
+    // 20-day range band
+    const i0=bars.length-20; ctx.fillStyle=accent; ctx.globalAlpha=.08; ctx.fillRect(x(i0),y(r.raw.h20),x(bars.length-1)-x(i0),y(r.raw.l20)-y(r.raw.h20)); ctx.globalAlpha=1;
+    ctx.setLineDash([3,3]); ctx.strokeStyle=accent; ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.h20)); ctx.lineTo(x(bars.length-1),y(r.raw.h20)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.l20)); ctx.lineTo(x(bars.length-1),y(r.raw.l20)); ctx.stroke(); ctx.setLineDash([]);
+    // SMA50 (muted), SMA20 (accent)
+    const plot=(arr,col,wid)=>{ctx.strokeStyle=col; ctx.lineWidth=wid; ctx.beginPath(); let started=false; arr.forEach((v,i)=>{ if(v==null) return; if(!started){ctx.moveTo(x(i),y(v));started=true;} else ctx.lineTo(x(i),y(v)); }); ctx.stroke();};
+    plot(sma50,muted,1.5); plot(sma20,accent,1.5);
+    // candles-as-bars: high/low wick plus close tick
+    bars.forEach((b,i)=>{ const col=b.c>=b.o?up:down; ctx.strokeStyle=col; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x(i),y(b.h)); ctx.lineTo(x(i),y(b.l)); ctx.stroke();
+      ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x(i),y(b.c)); ctx.lineTo(x(i)+3,y(b.c)); ctx.stroke(); });
+    // labels at the right edge
+    ctx.textBaseline='middle'; ctx.font='bold '+font;
+    const tag=(v,txt,col)=>{ctx.fillStyle=col; ctx.fillText(txt,padL+W+6,y(v));};
+    ctx.fillStyle=fg; ctx.fillRect(padL+W,y(r.price)-8,54,16); ctx.fillStyle=css('--bg'); ctx.fillText(r.price.toFixed(2),padL+W+4,y(r.price));
+    const lbl=[[r.raw.sma20,'SMA20',accent],[r.raw.sma50,'SMA50',muted],[r.raw.h20,'20d hi',accent],[r.raw.l20,'20d lo',accent]].sort((a,b)=>a[0]-b[0]);
+    let lastY=-99; lbl.forEach(([v,t,c])=>{ let yy=y(v); if(Math.abs(yy-y(r.price))<10) return; if(Math.abs(yy-lastY)<11) return; lastY=yy; ctx.fillStyle=c; ctx.font=font; ctx.fillText(t,padL+W+6,yy); });
+
+    // ---- RSI panel ----
+    const R=setupCanvas($('cv-rsi')), c2=R.ctx, H2=R.h-padT-12, y2=v=>padT+(1-v/100)*H2;
+    c2.font=font; c2.textBaseline='middle';
+    c2.fillStyle=down; c2.globalAlpha=.08; c2.fillRect(padL,y2(100),W,y2(70)-y2(100)); c2.fillStyle=up; c2.fillRect(padL,y2(30),W,y2(0)-y2(30)); c2.globalAlpha=1;
+    [[70,down],[50,line],[30,up]].forEach(([v,col])=>{c2.strokeStyle=col; c2.setLineDash([3,3]); c2.beginPath(); c2.moveTo(padL,y2(v)); c2.lineTo(padL+W,y2(v)); c2.stroke(); c2.setLineDash([]); c2.fillStyle=muted; c2.fillText(v,padL+W+6,y2(v));});
+    c2.strokeStyle=fg; c2.lineWidth=1.5; c2.beginPath(); let st=false; rsiS.forEach((v,i)=>{ if(v==null) return; if(!st){c2.moveTo(x(i),y2(v));st=true;} else c2.lineTo(x(i),y2(v)); }); c2.stroke();
+    c2.fillStyle=fg; c2.font='bold '+font; c2.fillText('RSI '+r.rsi.toFixed(1),padL+4,padT+8);
+  }
+
+  function notesFor(r){
+    const v=r.raw, f1=x=>x.toFixed(1), f2=x=>x.toFixed(2), ok=t=>'<li class="ok">'+t+'</li>', bad=t=>'<li class="bad">'+t+'</li>', mid=t=>'<li class="mid">'+t+'</li>';
+    const out=[];
+    // Trend
+    if(r.price>v.sma20) out.push(ok('Price '+f2(r.price)+' is above SMA20 '+f2(v.sma20)+' (+'+f1(r.sma20)+'%).')); else out.push(bad('Price '+f2(r.price)+' is below SMA20 '+f2(v.sma20)+' ('+f1(r.sma20)+'%). Short-term trend is not up.'));
+    if(v.sma20>v.sma50) out.push(ok('SMA20 is above SMA50: the medium-term trend still points up.')); else out.push(bad('SMA20 is below SMA50: the averages are crossed down.'));
+    out.push(v.sma20>v.sma20prev?ok('SMA20 is rising vs five sessions ago.'):bad('SMA20 is falling vs five sessions ago.'));
+    // Range
+    out.push((r.rng>=85?ok:r.rng<=15?bad:mid)('Sits at '+f1(r.rng)+'% of its 20-day range ('+f2(v.l20)+' to '+f2(v.h20)+'). '+(r.rng>=85?'Near the high, where breakouts start.':r.rng<=15?'Near the low.':'Mid-range: neither breaking out nor washed out.')));
+    out.push(((v.h20-r.price)<=v.atr?ok:mid)('Needs +'+f1((v.h20/r.price-1)*100)+'% to reach the 20-day high; that is '+f1((v.h20-r.price)/v.atr)+' ATRs away'+((v.h20-r.price)<=v.atr?'.':' (breakout rule wants 1 or less).')));
+    // Extension
+    out.push(v.distSma20>2.5?bad('Extended: '+f1(v.distSma20)+' ATRs above SMA20. Chasing here is buying a stretched move.'):ok('Not extended: '+f1(v.distSma20)+' ATRs from SMA20.'));
+    // RS
+    if(r.rsQ!=null) out.push((r.rsQ>2?ok:r.rsQ<-2?bad:mid)('Relative strength vs QQQ: '+(r.rsQ>0?'+':'')+f1(r.rsQ)+' pts over 20 days. '+(r.rsQ>2?'Leading the index.':r.rsQ<-2?'Lagging the index.':'Moving with the index, not leading it.')));
+    if(r.rsS!=null) out.push((r.rsS>2?ok:r.rsS<-2?bad:mid)('Relative strength vs SMH: '+(r.rsS>0?'+':'')+f1(r.rsS)+' pts.'));
+    // RSI / momentum / volume / vol
+    out.push((r.rsi>=50&&r.rsi<=70?ok:r.rsi>75?bad:mid)('RSI '+f1(r.rsi)+': '+(r.rsi>75?'overbought zone.':r.rsi>=50&&r.rsi<=70?'healthy momentum zone (50–70).':r.rsi<35?'oversold zone. Can stay here in a decline.':'neutral. No momentum either way.')));
+    out.push((r.vr>=1.5?ok:r.vr<.8?bad:mid)('Volume '+f2(r.vr)+'× its 20-day average'+(r.vr>=1.5?': something is happening.':r.vr<.8?': quiet, no conviction behind the move.':': ordinary.')+(r.lastDate===new Date().toISOString().slice(0,10)?' Partial session, will rise by the close.':'')));
+    out.push(mid('ATR '+f2(v.atr)+' ('+f1(r.atr)+'%/day). A 1.5× ATR stop would sit about '+f2(1.5*v.atr)+' below entry.'));
+    // Verdict
+    let why;
+    if(r.setupCls==='b') why='Matches the breakout rules: uptrend, near the high, not extended.';
+    else if(r.setupCls==='p') why='Matches the pullback rules: trend intact, price back at SMA20 with neutral RSI.';
+    else if(r.setupCls==='x') why='Extended: the move has already happened. The rule set waits for a pullback instead of chasing.';
+    else if(r.setupCls==='dn') why='Downtrend: price below SMA20 below SMA50. The breakout strategy does not buy falling stocks.';
+    else { const miss=[]; if(!v.up) miss.push('not in an uptrend'); if(r.rng<85) miss.push('not near its 20-day high'); if(!(v.sma20>v.sma50&&r.price>v.sma50&&v.distSma20>=-1.5&&v.distSma20<=.5&&r.rsi>=40&&r.rsi<=60)) miss.push('not a clean pullback to SMA20 either'); why='No setup: '+miss.join(', ')+'. It is drifting. Nothing to act on under these rules, in either direction.'; }
+    return '<li class="verdict"><b>'+r.setup+'</b> ('+r.score+'/100, '+r.align.toLowerCase()+'). '+why+'</li>'+out.join('');
+  }
+
+  function showDetail(t){
+    const r=rows.find(x=>x.t===t); if(!r) return;
+    $('d-title').textContent=t; $('d-sub').textContent=r.setup+' · '+r.lastDate+(srcEl.className.includes('demo')?' · DEMO DATA, generated':'');
+    $('d-notes').innerHTML=notesFor(r); $('detail').hidden=false;
+    requestAnimationFrame(()=>drawChart(r));
+    $('detail').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  rowsEl.addEventListener('click',e=>{ const td=e.target.closest('td.t'); if(td) showDetail(td.textContent.trim()); });
+  $('d-close').addEventListener('click',()=>{$('detail').hidden=true;});
+  window.addEventListener('resize',()=>{ if(!$('detail').hidden){ const r=rows.find(x=>x.t===$('d-title').textContent); if(r) drawChart(r);} });
 
   // ---------- demo data: seeded random walk, clearly labelled ----------
   function demoBars(t){
