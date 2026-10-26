@@ -37,7 +37,7 @@ button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .msg{font-family:var(--mono);font-size:12px;color:var(--muted);flex:1 1 100%}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0;border-left:4px solid var(--line)}
-.card.b{border-left-color:var(--up)} .card.p{border-left-color:var(--accent)} .card.x{border-left-color:var(--warn)} .card.e{border-left-color:var(--down)}
+.card.b{border-left-color:var(--up)} .card.p{border-left-color:var(--accent)} .card.x{border-left-color:var(--warn)} .card.e{border-left-color:var(--down)} .card.s{border-left-color:var(--fg)}
 .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .card .v{font-family:var(--mono);font-size:13px;margin-top:4px;word-break:break-word}
 .card .d{font-size:11px;color:var(--muted);margin-top:4px}
@@ -55,6 +55,11 @@ td.num{font-family:var(--mono);font-size:13px}
 .pill.b{background:var(--up);color:#fff} .pill.p{background:var(--accent);color:var(--bg)} .pill.x{background:var(--warn);color:#fff} .pill.dn{background:var(--down);color:#fff}
 .pill.soon{background:var(--down);color:#fff;font-weight:500}
 .vol{font-weight:600;color:var(--warn)}
+.meter{display:flex;align-items:center;gap:8px;cursor:help}
+.meter .bar{width:80px;height:8px;border-radius:4px;background:var(--chip);overflow:hidden;flex:none}
+.meter .bar i{display:block;height:100%;background:var(--accent)}
+.meter .num{font-family:var(--mono);font-size:13px;width:2ch;text-align:right}
+.meter .al{font-size:11px;color:var(--muted)}
 svg.spark{width:92px;height:26px;display:block}
 .legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:78ch}
 .legend b{color:var(--fg);font-weight:600}
@@ -94,13 +99,14 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
     <div class="card b"><div class="k">Breakout candidates</div><div id="c-b" class="v">–</div><div class="d">Uptrend, near 20-day high, not extended</div></div>
     <div class="card p"><div class="k">Pullback watch</div><div id="c-p" class="v">–</div><div class="d">Uptrend, price back at SMA20, RSI 40–60</div></div>
     <div class="card x"><div class="k">Extended</div><div id="c-x" class="v">–</div><div class="d">More than 2.5 ATR above SMA20 or RSI over 75</div></div>
+    <div class="card s"><div class="k">Strongest breakout alignment</div><div id="c-s" class="v">–</div><div class="d">Top scores. Hover a bar for the five-part breakdown.</div></div>
     <div class="card e"><div class="k">Earnings within 7 days</div><div id="c-e" class="v">–</div><div class="d">Setups near earnings are coin flips. Check the date on investor relations.</div></div>
   </section>
 
   <div class="tablewrap">
     <table id="tbl">
       <thead><tr>
-        <th data-k="t">Ticker</th><th data-k="setup" class="setup">Setup</th><th data-k="edays">Earnings</th><th data-k="spark">20d</th><th data-k="price">Price</th>
+        <th data-k="t">Ticker</th><th data-k="setup" class="setup">Setup</th><th data-k="score" class="setup">Breakout alignment</th><th data-k="edays">Earnings</th><th data-k="spark">20d</th><th data-k="price">Price</th>
         <th data-k="d1">1d %</th><th data-k="d5">5d %</th><th data-k="d20">20d %</th>
         <th data-k="rsQ">RS vs QQQ</th><th data-k="rsS">RS vs SMH</th>
         <th data-k="atr">ATR %</th><th data-k="rsi">RSI</th><th data-k="sma20">vs SMA20</th><th data-k="sma50">vs SMA50</th>
@@ -114,6 +120,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
     <summary>How the columns and setup labels are computed</summary>
     <div class="legend" style="margin-top:8px">
       <div><b>Setup labels</b> are rule matches, not predictions. <b>Breakout candidate</b>: price above SMA20 above SMA50, SMA20 rising, price in the top 15% of its 20-day range and within 1 ATR of the 20-day high. <b>Pullback watch</b>: SMA20 above SMA50, price above SMA50, price within −1.5 to +0.5 ATR of SMA20, RSI between 40 and 60. <b>Extended</b>: price more than 2.5 ATR above SMA20, or RSI above 75. <b>Downtrend</b>: price below SMA20 below SMA50. Otherwise <b>no setup</b>.</div>
+      <div><b>Breakout alignment (0–100)</b> how many of the momentum-breakout strategy's conditions are met, grouped into five buckets so correlated signals don't double count: Trend 25 (price vs SMA20/SMA50, SMA20 slope), Relative strength 25 (RS vs QQQ and SMH, full marks at +5 pts), Setup 20 (range position, within 1 ATR of the 20-day high, not extended), Volume 15 (relative volume, halved on a down day), Momentum 15 (RSI zone, 5-day return, acceleration). 75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. <b>It is not a probability.</b> A 78 means the stock matches the strategy's rules well today, not that it has a 78% chance of rising. The earnings badge is deliberately kept outside the score.</div>
       <div><b>RS vs QQQ / SMH</b> 20-day return of the stock minus the 20-day return of the benchmark, in percentage points. Positive means it is leading the index, not just riding it.</div>
       <div><b>ATR %</b> 14-day Wilder ATR (includes overnight gaps) as a share of price. <b>RSI</b> 14-day Wilder RSI, matching TradingView. Over 70 is not an automatic sell; in a strong trend it can stay high.</div>
       <div><b>Avg $vol</b> mean of close × volume over the last 20 completed sessions. <b>Vol vs avg</b> latest session volume against the 20 sessions before it (the latest is excluded from the baseline). During market hours the latest bar is partial, so this understates activity until the close.</div>
@@ -173,10 +180,27 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
     else if(sma20>sma50&&last>sma50&&distSma20>=-1.5&&distSma20<=.5&&rsi>=40&&rsi<=60){setup='Pullback watch';cls='p';rank=1;}
     else if(last<sma20&&sma20<sma50){setup='Downtrend';cls='dn';rank=3;}
 
-    return {t,setup,setupCls:cls,setupRank:rank,edays,earnDate:earnDate||'',
+    // ----- Breakout alignment score, 0-100. A summary of how many of the strategy's
+    //       conditions are met, grouped so correlated signals don't double count.
+    //       It is NOT a probability of going up. -----
+    const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+    const d5=pct(last,bars[n-6].c), d1=pct(last,bars[n-2].c), vr=baseV?bars[n-1].v/baseV:0;
+    const rsQ=rs('QQQ'), rsS=rs('SMH');
+    const sc={
+      trend:   (last>sma20?8:0)+(sma20>sma50?8:0)+(sma20>sma20prev?5:0)+(last>sma50?4:0),                       // /25
+      rel:     (rsQ==null?12.5:clamp(rsQ/5,0,1)*12.5)+(rsS==null?12.5:clamp(rsS/5,0,1)*12.5),                   // /25 (neutral if no benchmark)
+      setup:   clamp(((last-l20)/(h20-l20||1)-.6)/.4,0,1)*10+((h20-last)<=atr?5:0)+(distSma20<=2.5&&rsi<=75?5:0), // /20
+      volume:  clamp((vr-.8)/1.2,0,1)*15*(d1>=0?1:.5),                                                           // /15 (volume on a down day counts half)
+      momentum:(rsi>=50&&rsi<=70?8:rsi>70&&rsi<=75?5:rsi>=40&&rsi<50?4:0)+(d5>0?4:0)+(d5>d20/4?3:0),            // /15
+    };
+    const score=Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum);
+    const align=score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment';
+    const breakdown='Trend '+sc.trend.toFixed(0)+'/25 · Rel. strength '+sc.rel.toFixed(0)+'/25 · Setup '+sc.setup.toFixed(0)+'/20 · Volume '+sc.volume.toFixed(0)+'/15 · Momentum '+sc.momentum.toFixed(0)+'/15';
+
+    return {t,setup,setupCls:cls,setupRank:rank,edays,earnDate:earnDate||'',score,align,breakdown,
       price:last,d1:pct(last,bars[n-2].c),d5:pct(last,bars[n-6].c),d20,
-      rsQ:rs('QQQ'),rsS:rs('SMH'),atr:atrP,rsi,sma20:pct(last,sma20),sma50:pct(last,sma50),
-      rng:h20===l20?50:(last-l20)/(h20-l20)*100,dvol,vr:baseV?bars[n-1].v/baseV:0,spark:tail(bars,20,'c'),lastDate:bars[n-1].d};
+      rsQ,rsS,atr:atrP,rsi,sma20:pct(last,sma20),sma50:pct(last,sma50),
+      rng:h20===l20?50:(last-l20)/(h20-l20)*100,dvol,vr,spark:tail(bars,20,'c'),lastDate:bars[n-1].d};
   }
 
   // ---------- demo data: seeded random walk, clearly labelled ----------
@@ -242,7 +266,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
   const earnCell=r=>r.edays==null?'<td class="num">–</td>':'<td title="'+r.earnDate+'"><span class="pill'+(r.edays>=0&&r.edays<=7?' soon':'')+'">'+(r.edays<0?'past':r.edays+'d')+'</span></td>';
   function render(){
     const sorted=rows.slice().sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;});
-    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="setup"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+earnCell(r)+
+    const meter=r=>'<td class="setup" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
+    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="setup"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+meter(r)+earnCell(r)+
       '<td>'+spark(r.spark)+'</td><td class="num">'+f(r.price)+'</td>'+pc(r.d1)+pc(r.d5)+pc(r.d20)+pc(r.rsQ)+pc(r.rsS)+
       '<td class="num">'+f(r.atr)+'</td><td><span class="pill '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
       pc(r.sma20)+pc(r.sma50)+'<td class="num">'+f(r.rng,0)+'</td><td class="num">'+f(r.dvol,1)+'</td><td class="num'+(r.vr>1.5?' vol':'')+'">'+f(r.vr)+'×</td></tr>').join('');
@@ -250,6 +275,7 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
     const names=p=>rows.filter(p).map(r=>r.t).join(', ')||'none';
     $('c-b').textContent=names(r=>r.setupCls==='b'); $('c-p').textContent=names(r=>r.setupCls==='p');
     $('c-x').textContent=names(r=>r.setupCls==='x'); $('c-e').textContent=names(r=>r.edays!=null&&r.edays>=0&&r.edays<=7);
+    $('c-s').textContent=rows.slice().sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score).join(', ')||'–';
   }
   document.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{
     let k=th.dataset.k; if(k==='spark') return; if(k==='setup') k='setupRank';
@@ -271,13 +297,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
   function snapshot(source){
     try{
       const key='sb_history', date=rows[0]?rows[0].lastDate:'', h=JSON.parse(localStorage.getItem(key)||'[]').filter(x=>!(x.date===date&&x.src===source));
-      rows.forEach(r=>h.push({date,src:source,t:r.t,setup:r.setup,price:+r.price.toFixed(2),rsi:+r.rsi.toFixed(1),rsQ:r.rsQ==null?'':+r.rsQ.toFixed(2),atr:+r.atr.toFixed(2),rng:+r.rng.toFixed(0),vr:+r.vr.toFixed(2)}));
+      rows.forEach(r=>h.push({date,src:source,t:r.t,setup:r.setup,score:r.score,price:+r.price.toFixed(2),rsi:+r.rsi.toFixed(1),rsQ:r.rsQ==null?'':+r.rsQ.toFixed(2),atr:+r.atr.toFixed(2),rng:+r.rng.toFixed(0),vr:+r.vr.toFixed(2)}));
       localStorage.setItem(key,JSON.stringify(h.slice(-3000)));
     }catch(e){}
   }
   $('hist').addEventListener('click',()=>{
     let h=[]; try{h=JSON.parse(localStorage.getItem('sb_history')||'[]');}catch(e){}
-    const cols=['date','src','t','setup','price','rsi','rsQ','atr','rng','vr'];
+    const cols=['date','src','t','setup','score','price','rsi','rsQ','atr','rng','vr'];
     const csv=[cols.join(',')].concat(h.map(x=>cols.map(c=>x[c]).join(','))).join('\n');
     navigator.clipboard.writeText(csv).then(()=>msgEl.textContent='Copied '+h.length+' snapshot rows as CSV.',()=>{msgEl.textContent='Clipboard blocked here. Open the page in a desktop browser to copy.';});
   });

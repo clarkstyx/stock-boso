@@ -115,6 +115,40 @@ def setup_label(last, sma20, sma50, sma20_prev, atr, high20, low20, rsi) -> str:
     return "No setup"
 
 
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def breakout_alignment(last, sma20, sma50, sma20_prev, atr, high20, low20, rsi,
+                       rs_qqq, rs_smh, vol_ratio, d1, d5, d20) -> tuple[int, str, dict]:
+    """
+    Momentum-breakout alignment score, 0-100. Five buckets so correlated signals
+    don't double count. A summary of rule matches, NOT a probability of going up.
+    """
+    dist = (last - sma20) / atr
+    range_pos = (last - low20) / (high20 - low20) if high20 != low20 else 0.5
+    parts = {
+        # Trend /25: price vs averages and whether SMA20 is rising
+        "Trend": (8 if last > sma20 else 0) + (8 if sma20 > sma50 else 0)
+                 + (5 if sma20 > sma20_prev else 0) + (4 if last > sma50 else 0),
+        # Relative strength /25: full marks at +5 pts over each benchmark; neutral if missing
+        "RelStrength": (12.5 if rs_qqq is None else clamp(rs_qqq / 5, 0, 1) * 12.5)
+                       + (12.5 if rs_smh is None else clamp(rs_smh / 5, 0, 1) * 12.5),
+        # Setup /20: high in the range, near the 20-day high, not extended
+        "Setup": clamp((range_pos - 0.6) / 0.4, 0, 1) * 10 + (5 if high20 - last <= atr else 0)
+                 + (5 if dist <= 2.5 and rsi <= 75 else 0),
+        # Volume /15: relative volume, counts half on a down day
+        "Volume": clamp((vol_ratio - 0.8) / 1.2, 0, 1) * 15 * (1 if d1 >= 0 else 0.5),
+        # Momentum /15: RSI zone, 5-day return, acceleration vs the 20-day pace
+        "Momentum": (8 if 50 <= rsi <= 70 else 5 if 70 < rsi <= 75 else 4 if 40 <= rsi < 50 else 0)
+                    + (4 if d5 > 0 else 0) + (3 if d5 > d20 / 4 else 0),
+    }
+    score = round(sum(parts.values()))
+    label = ("Strong alignment" if score >= 75 else "Moderate alignment" if score >= 55
+             else "Mixed signals" if score >= 35 else "Weak alignment")
+    return score, label, parts
+
+
 # ---------------------------------------------------------------------------
 # 5. ANALYZE ONE TICKER
 # ---------------------------------------------------------------------------
@@ -137,9 +171,19 @@ def analyze(ticker: str, df: pd.DataFrame, bench_ret: dict[str, float], earnings
 
     edays = (earnings - last_date).days if earnings else None
 
+    d1, d5 = pct(last, float(close.iloc[-2])), pct(last, float(close.iloc[-6]))
+    vol_ratio = float(df["Volume"].iloc[-1]) / base_vol if base_vol else 0.0
+    rs_qqq = d20 - bench_ret["QQQ"] if "QQQ" in bench_ret else None
+    rs_smh = d20 - bench_ret["SMH"] if "SMH" in bench_ret else None
+    score, align, parts = breakout_alignment(last, sma20, sma50, sma20_prev, atr, high20, low20, rsi,
+                                             rs_qqq, rs_smh, vol_ratio, d1, d5, d20)
+
     return {
         "Ticker": ticker,
         "Setup": setup_label(last, sma20, sma50, sma20_prev, atr, high20, low20, rsi),
+        "Breakout score": score,
+        "Alignment": align,
+        "Score breakdown": " · ".join(f"{k} {v:.0f}" for k, v in parts.items()),
         "Earnings in (d)": edays,
         "Earnings date": earnings.isoformat() if earnings else "",
         "Price": round(last, 2),
@@ -188,7 +232,7 @@ def main() -> None:
 
     results = pd.DataFrame(rows)
     results["_order"] = results["Setup"].map(SETUP_ORDER)
-    results = results.sort_values(["_order", "RS vs QQQ"], ascending=[True, False]).drop(columns="_order").reset_index(drop=True)
+    results = results.sort_values(["_order", "Breakout score"], ascending=[True, False]).drop(columns="_order").reset_index(drop=True)
 
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", None)
@@ -198,7 +242,7 @@ def main() -> None:
     results.to_excel("screener_results.xlsx", index=False)
 
     # Snapshot for later forward-return measurement
-    snap = results[["Bar date", "Ticker", "Setup", "Price", "RSI", "RS vs QQQ", "ATR %", "20d range pos", "Vol vs avg"]].copy()
+    snap = results[["Bar date", "Ticker", "Setup", "Breakout score", "Price", "RSI", "RS vs QQQ", "ATR %", "20d range pos", "Vol vs avg"]].copy()
     snap.insert(1, "Run at", datetime.now().isoformat(timespec="minutes"))
     snap.to_csv(HISTORY_FILE, mode="a", index=False, header=not os.path.exists(HISTORY_FILE))
 

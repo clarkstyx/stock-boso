@@ -26,6 +26,7 @@ takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit 
 | Column | What it means |
 |---|---|
 | Setup | Rule match, not a prediction: Breakout candidate / Pullback watch / Extended / Downtrend / No setup (rules below) |
+| Breakout alignment | 0–100 score of how well the stock matches the momentum-breakout strategy today (buckets below). Not a probability. |
 | Earnings | Days until the next earnings date. Flagged red within 7 days. Dates can be estimates; verify on investor relations. |
 | RS vs QQQ / SMH | 20-day return minus the benchmark's 20-day return, in percentage points. Positive = leading, not just riding the index. |
 | ATR % | 14-day Wilder ATR (includes overnight gaps) as % of price. Volatility, not direction. |
@@ -42,6 +43,20 @@ takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit 
 - **Extended**: price more than 2.5 ATR above SMA20, or RSI > 75.
 - **Downtrend**: price < SMA20 < SMA50.
 
+### Breakout alignment score
+
+Five buckets, grouped so correlated signals don't double count:
+
+| Bucket | Max | Measures |
+|---|---|---|
+| Trend | 25 | Price vs SMA20 and SMA50, SMA20 rising |
+| Relative strength | 25 | RS vs QQQ and SMH, full marks at +5 pts over each |
+| Setup | 20 | Position in the 20-day range, within 1 ATR of the high, not extended |
+| Volume | 15 | Relative volume (counts half on a down day) |
+| Momentum | 15 | RSI zone, 5-day return, acceleration vs the 20-day pace |
+
+75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. A 78 means the rules are well matched today, not that there is a 78% chance of a rise. Earnings risk is deliberately kept outside the score so a strong setup never hides it.
+
 ## History / forward tracking
 
 Each run appends a snapshot (date, ticker, setup, key inputs) to `history.csv` (Python) or
@@ -50,8 +65,9 @@ checking whether the setups actually led anywhere.
 
 ## Roadmap
 
-1. Strategy-specific confluence score (momentum breakout) with a visible component breakdown, after the snapshots show the setups are worth scoring.
-2. Scalp mode (gap %, time-of-day relative volume, VWAP, opening range) — needs an intraday feed, not the free tier.
+1. Forward-return scorecard: use `history.csv` to check whether high scores actually led to better 1/3/5/10-day outcomes than sorting by RS or momentum alone. If not, the score gets reworked or dropped.
+2. Trend Pullback score as a second strategy.
+3. Scalp mode (gap %, time-of-day relative volume, VWAP, opening range) — needs an intraday feed, not the free tier.
 
 ## Notes
 
