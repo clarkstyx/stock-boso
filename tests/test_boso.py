@@ -220,3 +220,43 @@ def test_parity_with_javascript(benches):
             assert w["sc"][k] == pytest.approx(py[col], abs=0.5), (sym, k)
         assert w["rsi"] == pytest.approx(py["RSI"], abs=0.05), sym
         assert w["atr"] == pytest.approx(py["ATR %"], abs=0.02), sym
+
+
+# ---------------------------------------------------------------------------
+# 12. Replay safety: with now=None, analyze() never consults the clock
+# ---------------------------------------------------------------------------
+def test_analyze_never_reads_clock_in_replay_mode(benches, monkeypatch):
+    import datetime as _dt
+    class Frozen(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None): raise AssertionError("datetime.now called inside analyze")
+        @classmethod
+        def today(cls): raise AssertionError("datetime.today called inside analyze")
+    class FrozenDate(_dt.date):
+        @classmethod
+        def today(cls): raise AssertionError("date.today called inside analyze")
+    monkeypatch.setattr(boso, "datetime", Frozen)
+    monkeypatch.setattr(boso, "date", FrozenDate)
+    monkeypatch.setattr(pd.Timestamp, "now", classmethod(lambda cls, tz=None: (_ for _ in ()).throw(AssertionError("Timestamp.now"))))
+    r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
+    assert r["session_status"] == "final"
+    assert r["c_volume"] is not None
+
+
+# ---------------------------------------------------------------------------
+# 13. Snapshot key includes the engine version, so a corrected engine can record a revised row
+# ---------------------------------------------------------------------------
+def test_snapshot_key_includes_engine_version(tmp_path, benches):
+    r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
+    f = tmp_path / "snapshots.csv"
+    boso.write_snapshots([r], f, source="test")
+    key = pd.read_csv(f)["snapshot_key"].iloc[0]
+    assert boso.RULES_VERSION in key and boso.ENGINE_VERSION in key
+    # a different engine version writes a new row rather than being deduped away
+    monkey = boso.ENGINE_VERSION
+    boso.ENGINE_VERSION = "v9.9.9-test"
+    try:
+        assert boso.write_snapshots([r], f, source="test") == 1
+    finally:
+        boso.ENGINE_VERSION = monkey
+    assert len(pd.read_csv(f)) == 2

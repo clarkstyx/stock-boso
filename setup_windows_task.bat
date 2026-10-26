@@ -4,7 +4,7 @@ REM  Stock Boso - one-time Windows setup
 REM  Installs Python packages and creates a daily scheduled task
 REM  that runs the screener at 3:35 PM Regina time. That is 5:35 PM Eastern
 REM  in summer and 4:35 PM Eastern in winter: after the close either way.
-REM  Monday to Friday, and appends to history.csv.
+REM  Monday to Friday, and appends to snapshots.csv.
 REM
 REM  Double-click this file from inside the stock-boso folder.
 REM ============================================================

@@ -284,7 +284,7 @@ def write_snapshots(rows: list[dict], path: Path | str, source: str, run_at: dat
             existing = set()
     out = []
     for r in rows:
-        key = f"{r['Ticker']}|{r['Bar date']}|{RULES_VERSION}|{r['session_status']}"
+        key = f"{r['Ticker']}|{r['Bar date']}|{RULES_VERSION}|{ENGINE_VERSION}|{r['session_status']}"
         if key in existing:
             continue
         existing.add(key)

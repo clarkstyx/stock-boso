@@ -411,7 +411,9 @@ footer a{color:var(--accent)}
   const flagCls={'Extended':'warn','Heavy selling':'risk','Earnings':'soon','Incomplete':''};
   const flagsCell=r=>'<td class="l">'+(r.flags.map(x=>'<span class="pill '+flagCls[x]+'">'+x+'</span>').join('')||'<span class="sub">–</span>')+'</td>';
   const earnCell=r=>r.edays==null?'<td class="num">–</td>':'<td title="'+r.earnDate+'"><span class="pill'+(r.edays>=0&&r.edays<=7?' soon':'')+'">'+(r.edays<0?'past':r.edays+'d')+'</span></td>';
-  const meter=r=>r.score==null?'<td class="l" title="'+r.breakdown+'"><span class="sub">incomplete</span></td>':'<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
+  const meter=r=>r.score==null?'<td class="l" title="'+r.breakdown+'"><span class="sub">'+r.align.toLowerCase()+'</span></td>':
+    r.status==='intraday'?'<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+(r.score/85*100)+'%;opacity:.5"></i></div><span class="num">'+r.score+'</span><span class="al">/85 provisional</span></div></td>':
+    '<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
   const rsCell=r=>'<td class="num '+(r.rsB>0?'up':r.rsB<0?'down':'')+'" title="vs '+r.bname+'">'+(r.rsB==null?'–':(r.rsB>0?'+':'')+f(r.rsB,1)+' <span class="sub">'+r.bname+'</span>')+'</td>';
   function render(){
     const sorted=rows.slice().sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;});
@@ -424,7 +426,7 @@ footer a{color:var(--accent)}
     const bc=rows.filter(r=>r.setupCls==='bc').map(r=>r.t), bw=rows.filter(r=>r.setupCls==='bw').map(r=>r.t);
     $('c-b').textContent=(bc.length?bc.join(', '):'none')+' / '+(bw.length?bw.join(', '):'none');
     $('c-p').textContent=names(r=>r.setupCls==='p');
-    $('c-s').textContent=rows.filter(r=>r.score!=null).sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score).join(', ')||'–';
+    $('c-s').textContent=rows.filter(r=>r.score!=null).sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score+(r.status==='intraday'?'/85':'')).join(', ')||'–';
     $('c-w').textContent=rows.filter(r=>r.flags.includes('Extended')||r.flags.includes('Heavy selling')).map(r=>r.t+' ('+r.flags.filter(x=>x!=='Earnings'&&x!=='Incomplete').join(', ').toLowerCase()+')').join(', ')||'none';
     $('c-e').textContent=names(r=>r.flags.includes('Earnings'));
   }
@@ -538,7 +540,7 @@ footer a{color:var(--accent)}
       const key='sb_history', h=JSON.parse(localStorage.getItem(key)||'[]'), have=new Set(h.map(x=>x.key));
       const n=x=>x==null?'':+x.toFixed(2), run_at=new Date().toISOString().slice(0,16);
       rows.forEach(r=>{
-        const k=r.t+'|'+r.lastDate+'|'+RULES+'|'+r.status;
+        const k=r.t+'|'+r.lastDate+'|'+RULES+'|'+ENGINE+'|'+r.status;
         if(have.has(k)) return; have.add(k);           // never rewrite an existing observation
         const sc=r.raw.sc;
         h.push({key:k,run_at,rules:RULES,engine:ENGINE,src:source,status:r.status,date:r.lastDate,t:r.t,setup:r.setup,flags:r.flags.join('|'),score:r.score==null?'':r.score,alignment:r.align,
