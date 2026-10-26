@@ -2,7 +2,8 @@
 REM ============================================================
 REM  Stock Boso - one-time Windows setup
 REM  Installs Python packages and creates a daily scheduled task
-REM  that runs the screener at 4:35 PM Eastern (2:35 PM Regina),
+REM  that runs the screener at 3:35 PM Regina time. That is 5:35 PM Eastern
+REM  in summer and 4:35 PM Eastern in winter: after the close either way.
 REM  Monday to Friday, and appends to history.csv.
 REM
 REM  Double-click this file from inside the stock-boso folder.
@@ -39,8 +40,8 @@ if errorlevel 1 (
 )
 
 echo.
-echo Creating the daily scheduled task (weekdays 2:35 PM local = 4:35 PM ET)...
-schtasks /Create /F /TN "Stock Boso daily screen" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 14:35 ^
+echo Creating the daily scheduled task (weekdays 3:35 PM Regina, after the US close all year)...
+schtasks /Create /F /TN "Stock Boso daily screen" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 15:35 ^
   /TR "cmd /c cd /d \"%CD%\" && python stock_screener.py > last_run.log 2>&1"
 if errorlevel 1 (
   echo Could not create the task. Right-click this file and choose "Run as administrator".
@@ -49,9 +50,9 @@ if errorlevel 1 (
 )
 
 echo.
-echo Done. The screener runs every weekday at 2:35 PM. Each run:
+echo Done. The screener runs every weekday at 3:35 PM. Each run:
 echo   - updates screener_results.csv and .xlsx
-echo   - appends a snapshot to history.csv
+echo   - appends new rows to snapshots.csv (one per ticker per session, never duplicated)
 echo   - writes last_run.log (check it if something looks off)
 echo.
 echo To remove the task later:  schtasks /Delete /TN "Stock Boso daily screen" /F

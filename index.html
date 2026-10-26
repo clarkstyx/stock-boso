@@ -102,7 +102,7 @@ footer a{color:var(--accent)}
   <header>
     <h1>Stock Boso</h1>
     <span class="sub">Swing screener. Ranks setups and shows the evidence; the decision stays with you.</span>
-    <span class="ver">rules v2.1</span>
+    <span class="ver">rules v2.1 · engine v2.1.1</span>
   </header>
 
   <section class="notice">
@@ -231,7 +231,7 @@ footer a{color:var(--accent)}
 
 <script>
 (function(){
-  const RULES='v2.1';
+  const RULES='v2.1', ENGINE='v2.1.1';
   const $=id=>document.getElementById(id);
   const rowsEl=$('rows'), msgEl=$('msg'), srcEl=$('src');
   const BENCH=['QQQ','SMH'];
@@ -259,14 +259,33 @@ footer a{color:var(--accent)}
   const ramp=(x,x0,x1)=>clamp((x-x0)/(x1-x0),0,1);   // 0 at x0, 1 at x1
 
   // Benchmark context: 20-day return and trend regime
+  // Benchmark context: keep the dated closes so returns can be aligned by DATE, not position
   function benchInfo(bars){
-    if(!bars||bars.length<61) return null;
+    bars=cleanBars(bars).bars; if(!bars||bars.length<61) return null;
     const n=bars.length, c=bars[n-1].c, sma50=mean(bars.slice(-50).map(b=>b.c)), sma50prev=mean(bars.slice(-60,-10).map(b=>b.c));
-    return {d20:pct(c,bars[n-21].c), aboveSma50:c>sma50, sma50Rising:sma50>sma50prev};
+    return {dates:bars.map(b=>b.d), closes:bars.map(b=>b.c), aboveSma50:c>sma50, sma50Rising:sma50>sma50prev};
+  }
+  // last close on or before a date (asof)
+  function benchClose(B,d){ let i=B.dates.length-1; while(i>=0&&B.dates[i]>d) i--; return i<0?null:B.closes[i]; }
+  function benchReturn(B,start,end){ const s=benchClose(B,start), e=benchClose(B,end); return (s==null||e==null||s<=0)?null:pct(e,s); }
+  // Drop bars with missing or impossible OHLC; count them
+  function cleanBars(bars){
+    const ok=b=>b&&[b.o,b.h,b.l,b.c].every(x=>Number.isFinite(x))&&b.h>=b.l&&b.c>0&&b.h>0;
+    const out=(bars||[]).filter(ok).map(b=>Number.isFinite(b.v)?b:Object.assign({},b,{v:0}));
+    return {bars:out,dropped:(bars||[]).length-out.length};
+  }
+  // 'intraday' while the US market is open on the latest bar's date; now=null means 'treat as completed'
+  function sessionStatus(lastDate,now){
+    if(now===null) return 'final';
+    const et=new Date((now||new Date()).toLocaleString('en-US',{timeZone:'America/New_York'}));
+    const today=et.getFullYear()+'-'+String(et.getMonth()+1).padStart(2,'0')+'-'+String(et.getDate()).padStart(2,'0'), mins=et.getHours()*60+et.getMinutes();
+    return (lastDate===today&&mins>=570&&mins<960)?'intraday':'final';
   }
 
-  function analyze(t,bars,benches,earnDate){
+  function analyze(t,rawBars,benches,earnDate,now){
+    const cl=cleanBars(rawBars), bars=cl.bars; if(bars.length<61) return null;
     const n=bars.length, last=bars[n-1], c=last.c, prevC=bars[n-2].c;
+    const status=sessionStatus(last.d,now);
     const prior=bars.slice(n-21,n-1);                                   // t-20 .. t-1, excludes today
     const ph=Math.max(...prior.map(b=>b.h)), pl=Math.min(...prior.map(b=>b.l));
     const atr=atrWilder(bars), atrP=atr/c*100;
@@ -274,48 +293,61 @@ footer a{color:var(--accent)}
     const sma20prev=mean(bars.slice(-25,-5).map(b=>b.c)), sma50prev=mean(bars.slice(-60,-10).map(b=>b.c));
     const completed=bars.slice(-21,-1);
     const dvol=mean(completed.map(b=>b.c*b.v))/1e6, baseV=mean(completed.map(b=>b.v));
-    const vr=baseV?last.v/baseV:0, closeLoc=last.h>last.l?(c-last.l)/(last.h-last.l):.5;
+    const vr=baseV>0?last.v/baseV:null, closeLoc=last.h>last.l?(c-last.l)/(last.h-last.l):.5;
     const d1=pct(c,prevC), d5=pct(c,bars[n-6].c), d20=pct(c,bars[n-21].c), prev5=pct(bars[n-6].c,bars[n-11].c);
     const rsi=rsiWilder(bars);
-    const bname=benchFor(t), B=benches[bname], BQ=benches.QQQ;
-    const rsB=B?d20-B.d20:null, rsQ=BQ?d20-BQ.d20:null, rsNorm=rsB==null?null:rsB/atrP;
+    const bname=benchFor(t), B=benches[bname], BQ=benches.QQQ, startD=bars[n-21].d;
+    const rb=B?benchReturn(B,startD,last.d):null, rq=BQ?benchReturn(BQ,startD,last.d):null;
+    const invalid=!(atr>0)||!Number.isFinite(rsi);
+    const rsB=rb==null?null:d20-rb, rsQ=rq==null?null:d20-rq, rsNorm=(rsB==null||invalid)?null:rsB/atrP;
     const edays=earnDate?Math.round((new Date(earnDate)-new Date(last.d))/864e5):null;
     const rangePos=ph===pl?.5:(c-pl)/(ph-pl);                           // can exceed 1 after a breakout
-    const distSma20=(c-sma20)/atr;
+    const distSma20=invalid?null:(c-sma20)/atr;
 
     // ----- label (one) -----
     const up=c>sma20&&sma20>sma50&&sma20>sma20prev;
     let setup='No setup', cls='', rank=5;
-    if(up&&c>ph){setup='Breakout confirmed';cls='bc';rank=0;}
+    if(invalid){}
+    else if(up&&c>ph){setup='Breakout confirmed';cls='bc';rank=0;}
     else if(up&&(ph-c)<=atr&&rangePos>=.85){setup='Breakout watch';cls='bw';rank=1;}
     else if(sma20>sma50&&sma50>sma50prev&&c>sma50&&distSma20>=-1.5&&distSma20<=.5&&rsi>=40&&rsi<=60&&(rsNorm==null||rsNorm>=-1)){setup='Pullback watch';cls='p';rank=2;}
     else if(c<sma20&&sma20<sma50){setup='Downtrend';cls='dn';rank=4;}
 
     // ----- flags (any number) -----
     const flags=[];
-    if(distSma20>2.5||rsi>75) flags.push('Extended');
-    if(vr>=1.5&&closeLoc<.4&&c<prevC) flags.push('Heavy selling');
+    if(invalid) flags.push('Invalid data');
+    if(cl.dropped) flags.push('Dropped '+cl.dropped+' bar'+(cl.dropped>1?'s':''));
+    if(!invalid&&(distSma20>2.5||rsi>75)) flags.push('Extended');
+    if(vr!=null&&vr>=1.5&&closeLoc<.4&&c<prevC&&status==='final') flags.push('Heavy selling');
     if(edays!=null&&edays>=0&&edays<=7) flags.push('Earnings');
     if(rsB==null) flags.push('Incomplete');
 
     // ----- breakout alignment score, five buckets. NOT a probability. -----
     const volConfirm=closeLoc>=.5&&c>=prevC;
-    const sc={
+    const sc=invalid?{trend:null,rel:null,setup:null,volume:null,momentum:null}:{
       trend:(c>sma20?8:0)+(sma20>sma50?8:0)+(sma20>sma20prev?5:0)+(sma50>sma50prev?4:0),
       rel:rsNorm==null?null:ramp(rsNorm,0,2.5)*15+(B.aboveSma50?6:0)+(B.sma50Rising?4:0),
       setup:ramp(rangePos,.6,1)*10+((ph-c)<=atr?5:0)+(c>ph?5:0),
-      volume:volConfirm?ramp(vr,.8,2)*15:0,
+      // Volume is N/A while the session is open: a partial reading is not a bearish signal
+      volume:(status==='intraday'||vr==null)?null:(volConfirm?ramp(vr,.8,2)*15:0),
       momentum:(rsi<40?0:rsi<55?ramp(rsi,40,55)*8:rsi<=68?8:rsi<78?(1-ramp(rsi,68,78))*8:0)+(d5>0?4:0)+(d5>prev5&&d5>0?3:0),
     };
-    const score=sc.rel==null?null:Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum);
-    const align=score==null?'Incomplete':score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment';
-    const breakdown=score==null?'Benchmark data missing; score withheld.':'Trend '+sc.trend.toFixed(0)+'/25 · Rel. strength '+sc.rel.toFixed(0)+'/25 · Setup '+sc.setup.toFixed(0)+'/20 · Volume '+sc.volume.toFixed(0)+'/15 · Momentum '+sc.momentum.toFixed(0)+'/15';
+    let score=null, align='Incomplete';
+    if(invalid) align='Invalid data';
+    else if(sc.rel==null) align='Incomplete';
+    else if(sc.volume==null){ score=Math.round(sc.trend+sc.rel+sc.setup+sc.momentum); align='Provisional (intraday, volume n/a, max 85)'; }
+    else { score=Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum); align=score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment'; }
+    const fx=x=>x==null?'n/a':x.toFixed(0);
+    const breakdown=invalid?'Invalid data (no price movement or NaN); score withheld.':sc.rel==null?'Benchmark data missing; score withheld.':
+      'Trend '+fx(sc.trend)+'/25 · Rel. strength '+fx(sc.rel)+'/25 · Setup '+fx(sc.setup)+'/20 · Volume '+fx(sc.volume)+'/15 · Momentum '+fx(sc.momentum)+'/15';
 
-    return {t,setup,setupCls:cls,setupRank:rank,flags,flagsKey:flags.join(' '),edays,earnDate:earnDate||'',score,align,breakdown,bname,
-      price:c,d1,d5,d20,rsB,rsQ,atr:atrP,rsi,sma20:pct(c,sma20),sma50:pct(c,sma50),rng:rangePos*100,dvol,vr,
+    return {t,setup,setupCls:cls,setupRank:rank,flags,flagsKey:flags.join(' '),edays,earnDate:earnDate||'',score,align,breakdown,bname,status,
+      price:c,d1,d5,d20,rsB,rsQ,atr:invalid?null:atrP,rsi:Number.isFinite(rsi)?rsi:null,sma20:pct(c,sma20),sma50:pct(c,sma50),rng:rangePos*100,dvol,vr,
       spark:bars.slice(-20).map(b=>b.c),lastDate:last.d,bars,
-      raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,sc,closeLoc,prev5,rsNorm,B,volConfirm}};
+      raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,sc,closeLoc,prev5,rsNorm,B,volConfirm,prevC,o:last.o,h:last.h,l:last.l,v:last.v}};
   }
+  // exported for tests/parity.js
+  window.StockBoso={analyze,benchInfo,rsiWilder,atrWilder,RULES,ENGINE};
 
   // ---------- demo data ----------
   function demoBars(t){
@@ -453,8 +485,9 @@ footer a{color:var(--accent)}
 
   // One note per score bucket, plus flags and the verdict. Fewer, denser lines.
   function notesFor(r){
-    const v=r.raw, f1=x=>x.toFixed(1), f2=x=>x.toFixed(2), li=(cls,t,n)=>'<li class="'+cls+'">'+t+(n?'<span class="n">'+n+'</span>':'')+'</li>';
+    const v=r.raw, f1=x=>x==null?'–':x.toFixed(1), f2=x=>x==null?'–':x.toFixed(2), li=(cls,t,n)=>'<li class="'+cls+'">'+t+(n?'<span class="n">'+n+'</span>':'')+'</li>';
     const out=[];
+    if(r.flags.includes('Invalid data')) return '<li class="verdict"><b>Invalid data.</b> No price movement in the lookback (ATR is zero) or an indicator came back undefined. Nothing can be scored.</li>';
     // verdict
     let why;
     if(r.setupCls==='bc') why='Closed above the prior 20-day high in an uptrend. The breakout has happened; the question now is follow-through and where your stop goes (below '+f2(v.ph)+').';
@@ -473,7 +506,8 @@ footer a{color:var(--accent)}
     if(sc.rel==null) out.push(li('mid','Relative strength: benchmark '+r.bname+' not loaded, score withheld.'));
     else out.push(li(sc.rel>=18?'ok':sc.rel>=10?'mid':'bad','Relative strength '+sc.rel.toFixed(0)+'/25: '+(r.rsB>0?'leading':'lagging')+' '+r.bname+' by '+f1(Math.abs(r.rsB))+' pts over 20 days ('+f1(v.rsNorm)+' ATR). '+r.bname+' itself is '+(v.B.aboveSma50?'above':'below')+' its SMA50, which is '+(v.B.sma50Rising?'rising':'falling')+'.'));
     out.push(li(sc.setup>=14?'ok':sc.setup>=7?'mid':'bad','Setup '+sc.setup.toFixed(0)+'/20: at '+f1(r.rng)+'% of the prior 20-day range ('+f2(v.pl)+' to '+f2(v.ph)+'), '+(r.price>v.ph?'already above the prior high':f1((v.ph-r.price)/v.atr)+' ATRs below it')+'.'));
-    out.push(li(sc.volume>=9?'ok':sc.volume>=4?'mid':'bad','Volume '+sc.volume.toFixed(0)+'/15: '+f2(r.vr)+'× its 20-day average, close in the '+(v.closeLoc>=.5?'upper':'lower')+' half of the day\'s range'+(v.volConfirm?'.':'; no bullish volume credit.')+(r.lastDate===new Date().toISOString().slice(0,10)?' Partial session.':'')));
+    if(sc.volume==null) out.push(li('mid','Volume n/a: the session is still open, so today\'s volume is partial. Not counted as a negative. Score is provisional out of 85.'));
+    else out.push(li(sc.volume>=9?'ok':sc.volume>=4?'mid':'bad','Volume '+sc.volume.toFixed(0)+'/15: '+f2(r.vr)+'× its 20-day average, close in the '+(v.closeLoc>=.5?'upper':'lower')+' half of the day\'s range'+(v.volConfirm?'.':'; no bullish volume credit.')));
     out.push(li(sc.momentum>=10?'ok':sc.momentum>=5?'mid':'bad','Momentum '+sc.momentum.toFixed(0)+'/15: RSI '+f1(r.rsi)+', last 5 days '+(r.d5>0?'+':'')+f1(r.d5)+'% vs '+(v.prev5>0?'+':'')+f1(v.prev5)+'% the 5 before.'));
     out.push(li('mid','ATR '+f2(v.atr)+' ('+f1(r.atr)+'% per day). Use it to check your stop distance is reasonable; the stop itself comes from the chart.'));
     return out.join('');
@@ -499,17 +533,26 @@ footer a{color:var(--accent)}
     const today=et.toISOString().slice(0,10), mins=et.getHours()*60+et.getMinutes();
     return lastDate===today&&mins>=570&&mins<960;
   }
-  const sessionLabel=d=>isIntraday(d)?'INTRADAY, still changing (volume understated)':'completed session';
   function snapshot(source){
     try{
-      const key='sb_history', date=rows[0]?rows[0].lastDate:'', h=JSON.parse(localStorage.getItem(key)||'[]').filter(x=>!(x.date===date&&x.src===source));
-      rows.forEach(r=>h.push({date,src:source,rules:RULES,t:r.t,setup:r.setup,flags:r.flags.join('|'),score:r.score==null?'':r.score,price:+r.price.toFixed(2),rsi:+r.rsi.toFixed(1),rsB:r.rsB==null?'':+r.rsB.toFixed(2),bench:r.bname,atr:+r.atr.toFixed(2),rng:+r.rng.toFixed(0),vr:+r.vr.toFixed(2)}));
-      localStorage.setItem(key,JSON.stringify(h.slice(-4000)));
+      const key='sb_history', h=JSON.parse(localStorage.getItem(key)||'[]'), have=new Set(h.map(x=>x.key));
+      const n=x=>x==null?'':+x.toFixed(2), run_at=new Date().toISOString().slice(0,16);
+      rows.forEach(r=>{
+        const k=r.t+'|'+r.lastDate+'|'+RULES+'|'+r.status;
+        if(have.has(k)) return; have.add(k);           // never rewrite an existing observation
+        const sc=r.raw.sc;
+        h.push({key:k,run_at,rules:RULES,engine:ENGINE,src:source,status:r.status,date:r.lastDate,t:r.t,setup:r.setup,flags:r.flags.join('|'),score:r.score==null?'':r.score,alignment:r.align,
+          c_trend:n(sc.trend),c_rel:n(sc.rel),c_setup:n(sc.setup),c_volume:n(sc.volume),c_momentum:n(sc.momentum),
+          price:n(r.price),prev_close:n(r.raw.prevC),open:n(r.raw.o),high:n(r.raw.h),low:n(r.raw.l),volume:r.raw.v,sma20:n(r.raw.sma20),sma50:n(r.raw.sma50),sma20_prev:n(r.raw.sma20prev),sma50_prev:n(r.raw.sma50prev),
+          atr:n(r.raw.atr),prior_high:n(r.raw.ph),prior_low:n(r.raw.pl),rsi:n(r.rsi),d5:n(r.d5),prev5:n(r.raw.prev5),vr:n(r.vr),close_loc:n(r.raw.closeLoc),rs_bench:n(r.rsB),bench:r.bname,
+          bench_above_sma50:r.raw.B?r.raw.B.aboveSma50:'',bench_sma50_rising:r.raw.B?r.raw.B.sma50Rising:'',edays:r.edays==null?'':r.edays});
+      });
+      localStorage.setItem(key,JSON.stringify(h.slice(-6000)));
     }catch(e){}
   }
   $('hist').addEventListener('click',()=>{
     let h=[]; try{h=JSON.parse(localStorage.getItem('sb_history')||'[]');}catch(e){}
-    const cols=['date','src','rules','t','setup','flags','score','price','rsi','rsB','bench','atr','rng','vr'];
+    const cols=['key','run_at','rules','engine','src','status','date','t','setup','flags','score','alignment','c_trend','c_rel','c_setup','c_volume','c_momentum','price','prev_close','open','high','low','volume','sma20','sma50','sma20_prev','sma50_prev','atr','prior_high','prior_low','rsi','d5','prev5','vr','close_loc','rs_bench','bench','bench_above_sma50','bench_sma50_rising','edays'];
     const csv=[cols.join(',')].concat(h.map(x=>cols.map(c=>x[c]==null?'':x[c]).join(','))).join('\n');
     navigator.clipboard.writeText(csv).then(()=>msgEl.textContent='Copied '+h.length+' snapshot rows as CSV.',()=>{msgEl.textContent='Clipboard blocked here. Open the page in a desktop browser to copy.';});
   });
@@ -519,16 +562,17 @@ footer a{color:var(--accent)}
   function benchesFrom(all){ const b={}; BENCH.forEach(k=>{ const i=benchInfo(all[k]); if(i) b[k]=i; }); return b; }
   function loadDemo(){
     const all={}; BENCH.forEach(b=>all[b]=demoBars(b)); const benches=benchesFrom(all);
-    rows=tickers().filter(t=>!BENCH.includes(t)).map(t=>{const bars=demoBars(t); return analyze(t,bars,benches,demoEarnings(t,bars[bars.length-1].d));});
+    rows=tickers().filter(t=>!BENCH.includes(t)).map(t=>{const bars=demoBars(t); return analyze(t,bars,benches,demoEarnings(t,bars[bars.length-1].d),null);}).filter(Boolean);
     setStatus('DEMO DATA','generated','n/a (generated)','QQQ, SMH (generated)');
     msgEl.textContent='Demo prices and earnings dates are generated, not real. Add a Twelve Data key and run for live quotes.';
     render(); snapshot('demo');
   }
   function showLive(all,earn,got,fetchedAt,missed,earnFetched,cached){
     const benches=benchesFrom(all);
-    rows=got.map(t=>analyze(t,all[t],benches,earn[t]));
+    rows=got.map(t=>analyze(t,all[t],benches,earn[t])).filter(Boolean);
+    if(!rows.length){ msgEl.textContent='No usable data after cleaning.'; return null; }
     const lastDate=rows[0].lastDate, when=new Date(fetchedAt).toLocaleString();
-    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,sessionLabel(lastDate),Object.keys(benches).join(', ')||'unavailable');
+    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,rows[0].status==='intraday'?'INTRADAY, still changing (volume n/a, scores provisional)':'completed session',Object.keys(benches).join(', ')||'unavailable');
     msgEl.textContent=(cached?'Showing your last live run from '+when+'. Click Run screen to refresh. ':'Loaded '+got.length+' symbols. ')
       +(missed&&missed.length?'Skipped (no data): '+missed.join(', ')+'. ':'')+(earnFetched?'':'Earnings dates not fetched (tick the box to include them).');
     render();
@@ -547,7 +591,7 @@ footer a{color:var(--accent)}
       const fetchedAt=new Date().toISOString();
       const lastDate=showLive(all,earn,got,fetchedAt,want.filter(t=>!got.includes(t)),$('earn').checked);
       try{ localStorage.setItem('sb_live',JSON.stringify({all,earn,got,fetchedAt,rules:RULES})); }catch(e){}
-      snapshot(isIntraday(lastDate)?'live-intraday':'live');
+      if(lastDate) snapshot('twelvedata');
     }catch(e){ msgEl.textContent='Could not load live data: '+e.message; }
     $('run').disabled=false;
   });

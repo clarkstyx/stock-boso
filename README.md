@@ -19,8 +19,10 @@ python stock_screener.py
 
 Clone the repo, then double-click `setup_windows_task.bat` once. It installs the packages,
 does a test run, and creates a scheduled task that runs the screener every weekday at
-2:35 PM Regina time (4:35 PM ET, after the close). Results land in the same folder;
-`history.csv` grows by one snapshot per day.
+3:35 PM Regina time (5:35 PM ET in summer, 4:35 PM ET in winter: after the close all year).
+Results land in the same folder; `snapshots.csv` grows by one row per ticker per session.
+
+If you set this up before engine v2.1.1, re-run the .bat once: it replaces the old 2:35 PM task.
 
 ## Quick start (web)
 
@@ -78,11 +80,46 @@ takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit 
 - Trend bucket replaces the redundant price > SMA50 with SMA50 slope; RSI scoring is a ramp, not a cliff.
 - Beginner checklist: 0.25–0.5% risk while learning, stop from chart structure (ATR as a sanity check), correlated-exposure question, stop orders don't guarantee the fill.
 
-## History / forward tracking
+## Snapshots / forward tracking
 
-Each run appends a snapshot (date, ticker, setup, key inputs) to `history.csv` (Python) or
-browser storage (web, "Copy snapshot history" button). This is the raw material for later
-checking whether the setups actually led anywhere.
+Each run appends to `snapshots.csv` (Python) or browser storage (web, "Copy snapshot history").
+One row per ticker per bar date per rules version per session status; a repeat run adds nothing.
+Rows carry the rules and engine versions, source, `final` vs `intraday`, the setup, flags, score,
+all five score components and the raw inputs needed to recompute the score. Existing rows are
+never rewritten. The `history.csv` from engine v2 is left as it was.
+
+## Versions
+
+- **rules** change only when the strategy changes (currently v2.1, frozen for validation).
+- **engine** changes when a calculation or data-handling defect is fixed (currently v2.1.1).
+  Fixes can move numbers slightly; older snapshots keep their version stamp.
+
+## Tests
+
+```bash
+pip install pytest
+python tests/make_fixture.py   # only if tests/fixtures/bars.json is missing
+pytest -q
+```
+
+Covers: benchmark returns aligned by date when a stock misses a session; flat and rising-only
+series (no NaN); RSI seeded like TradingView's RMA; bad OHLC bars dropped and flagged; all
+downloads failing gives a clear error and writes nothing; repeated runs add no duplicate
+snapshots; incomplete benchmark withholds the score; intraday marks volume n/a and the score
+provisional (never lower); breakout label just below / at / above the prior high; and
+Python vs JavaScript parity on a shared fixture (labels exact, components within 0.5).
+
+### Engine v2.1.1 changes (no rules changes)
+
+- Benchmark returns are aligned by date; a stock missing a session no longer shifts the window.
+- RSI and ATR seed with a 14-bar simple average (TradingView RMA); Python and JavaScript now match.
+- Bars with missing or impossible OHLC are dropped and the row is flagged; zero-movement series
+  are flagged "Invalid data" with the score withheld instead of dividing by zero.
+- While the US session is open, the volume bucket is n/a and the score is provisional out of 85.
+  A partial reading is not a bearish signal. Heavy-selling flag also waits for the close.
+- Snapshot format v2 as above; `history.csv` untouched.
+- Python logic lives in `boso.py` (no network) so tests can run it; `stock_screener.py` is the CLI.
+- Scheduled task moved to 3:35 PM Regina so it stays after the close through daylight-saving changes.
 
 ## Roadmap
 
