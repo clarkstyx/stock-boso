@@ -461,16 +461,25 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
       const bb={}; BENCH.forEach(b=>{ if(all[b]&&all[b].length>=21) bb[b]=pct(all[b][all[b].length-1].c,all[b][all[b].length-21].c); });
       const got=want.filter(s=>all[s]&&all[s].length>=60);
       if(!got.length) throw new Error('No usable data came back. Check the key and symbols.');
-      rows=got.map(t=>analyze(t,all[t],bb,earn[t]));
-      const lastDate=rows[0].lastDate;
-      setStatus('LIVE · Twelve Data',lastDate,sessionLabel(lastDate),Object.keys(bb).join(', ')||'unavailable');
-      const missed=want.filter(t=>!got.includes(t));
-      msgEl.textContent='Loaded '+got.length+' symbols.'+(missed.length?' Skipped (no data): '+missed.join(', '):'')+($('earn').checked?'':' Earnings dates not fetched (tick the box to include them).');
-      render(); snapshot('live');
+      const fetchedAt=new Date().toISOString();
+      showLive(all,earn,bb,got,fetchedAt,want.filter(t=>!got.includes(t)),$('earn').checked);
+      try{ localStorage.setItem('sb_live',JSON.stringify({all,earn,bb,got,fetchedAt})); }catch(e){}
+      snapshot('live');
     }catch(e){ msgEl.textContent='Could not load live data: '+e.message; }
     $('run').disabled=false;
   });
+  // Render a live result set (fresh or restored from the browser cache)
+  function showLive(all,earn,bb,got,fetchedAt,missed,earnFetched,cached){
+    rows=got.map(t=>analyze(t,all[t],bb,earn[t]));
+    const lastDate=rows[0].lastDate, when=new Date(fetchedAt).toLocaleString();
+    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,sessionLabel(lastDate),Object.keys(bb).join(', ')||'unavailable');
+    msgEl.textContent=(cached?'Showing your last live run from '+when+'. Click Run screen to refresh. ':'Loaded '+got.length+' symbols. ')
+      +(missed&&missed.length?'Skipped (no data): '+missed.join(', ')+'. ':'')+(earnFetched?'':'Earnings dates not fetched (tick the box to include them).');
+    render();
+  }
   try{ const k=localStorage.getItem('sb_key'); if(k) $('apikey').value=k; }catch(e){}
-  loadDemo();
+  let restored=false;
+  try{ const c=JSON.parse(localStorage.getItem('sb_live')||'null'); if(c&&c.got&&c.got.length){ showLive(c.all,c.earn||{},c.bb||{},c.got,c.fetchedAt,[],Object.keys(c.earn||{}).length>0,true); restored=true; } }catch(e){}
+  if(!restored) loadDemo();
 })();
 </script>
