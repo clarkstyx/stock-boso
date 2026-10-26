@@ -4,3 +4,4 @@ __pycache__/
 venv/
 screener_results.csv
 screener_results.xlsx
+history.csv
