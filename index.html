@@ -86,6 +86,13 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
 .notice b{color:var(--fg)}
 .notice a{color:var(--accent)}
 .ntitle{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);font-weight:600}
+.howto{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13px}
+.howto summary{font-weight:600;color:var(--accent);cursor:pointer}
+.howgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:8px}
+@media (max-width:760px){.howgrid{grid-template-columns:1fr}}
+.howto h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
+.howto ol,.howto ul{margin:0;padding-left:20px;display:grid;gap:5px;max-width:65ch}
+.howto a{color:var(--accent)}
 footer{font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
 footer a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -104,6 +111,49 @@ footer a{color:var(--accent)}
     <p><b>Data.</b> The page opens with generated demo prices. For real quotes, sign up for a free API key at <a href="https://twelvedata.com" target="_blank" rel="noopener">twelvedata.com</a>, paste it below and click Run screen. Your key is stored only in this browser and requests go directly from you to Twelve Data. Quotes are end-of-day daily bars, delayed, for personal use only. Earnings dates may be estimates; confirm on the company's investor-relations site.</p>
     <p>Valencia AI accepts no liability for losses arising from use of this tool. By using it you agree to these terms.</p>
   </section>
+
+  <details class="howto" id="howto">
+    <summary>How to use it (5 minutes)</summary>
+    <div class="howgrid">
+      <div>
+        <h3>Set up once</h3>
+        <ol>
+          <li>Go to <a href="https://twelvedata.com" target="_blank" rel="noopener">twelvedata.com</a>, sign up (free), confirm your email.</li>
+          <li>Log in, open the Dashboard, copy your API key.</li>
+          <li>Paste it in the "Twelve Data API key" box below.</li>
+          <li>Tick "Fetch earnings dates", click <b>Run screen</b>. It takes about 4 minutes and pauses between batches; that is normal, don't click again. The orange DEMO badge turns green when real data is in.</li>
+        </ol>
+        <h3>Every time you look</h3>
+        <ol start="5">
+          <li>Click <b>Run screen</b> to refresh. Best after 4pm Eastern, when the day's bar is final.</li>
+          <li>Read the five cards first. Breakout candidates: trending up, near the recent high. Pullback watch: trending up, dipped back to its average. Extended: already ran too far, don't chase. Strongest alignment: best rule match today (not a prediction). Earnings within 7 days: avoid, it's a coin flip.</li>
+          <li>Click a ticker name to open its chart and notes. Green note: good for a buyer. Red: bad. Amber: neutral. The top note gives the verdict and why.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Before you buy anything, answer these four</h3>
+        <ol start="8">
+          <li><b>Is it a Breakout candidate or Pullback watch?</b> If "No setup" or "Downtrend", there is no reason to buy today. Wait.</li>
+          <li><b>Earnings more than 7 days away?</b> If not, wait until after the report.</li>
+          <li><b>Where is your stop?</b> The notes give a number: "a 1.5× ATR stop would sit about $X below entry". If price gets there, you sell. No arguing with it.</li>
+          <li><b>How many shares?</b> Risk 1–2% of your account per trade. Example: $5,000 account, 1% = $50 risk. Stop is $12 below entry, so $50 ÷ $12 = 4 shares. Even if you "feel good" about it.</li>
+        </ol>
+        <h3>What it can't do</h3>
+        <ul>
+          <li>Predict. A score of 85 means "matches the rules well today", not "85% chance it goes up".</li>
+          <li>Read the news. Check the news yourself before buying.</li>
+          <li>Prove itself yet. It is new and untested. A second opinion, not an expert.</li>
+        </ul>
+        <h3>Don't</h3>
+        <ul>
+          <li>Buy a Downtrend stock because it "looks cheap".</li>
+          <li>Buy two days before earnings.</li>
+          <li>Skip the stop because "it'll come back".</li>
+          <li>Put most of your money in one stock. If you're investing for years, this tool is the wrong one; it looks at 20 days.</li>
+        </ul>
+      </div>
+    </div>
+  </details>
 
   <div class="statusbar">
     <span id="src" class="src demo">DEMO DATA</span>
