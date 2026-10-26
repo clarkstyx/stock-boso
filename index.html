@@ -1,0 +1,233 @@
+<title>Stock Boso</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one summary strip, then a dense sortable ledger table; sparklines live in the row. */
+:root{
+  --bg:#f5f7f4; --panel:#ffffff; --fg:#1a2420; --muted:#5f6d66; --line:#d8e0da;
+  --accent:#1f6f5a; --up:#1f8a4c; --down:#c2403a; --warn:#b67a12; --chip:#e9efeb;
+  --display:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#101614; --panel:#182019; --fg:#e4ebe6; --muted:#93a39a; --line:#2a3630;
+  --accent:#4fbf9a; --up:#4ec97c; --down:#ef6b64; --warn:#e2a33c; --chip:#22302a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101614; --panel:#182019; --fg:#e4ebe6; --muted:#93a39a; --line:#2a3630;
+  --accent:#4fbf9a; --up:#4ec97c; --down:#ef6b64; --warn:#e2a33c; --chip:#22302a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--display);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 18px}
+h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted)}
+.src{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:4px;background:var(--chip);color:var(--muted)}
+.src.live{background:var(--accent);color:var(--bg)}
+.src.demo{background:var(--warn);color:#fff}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.controls label{font-size:12px;color:var(--muted);display:grid;gap:4px;min-width:0;flex:1 1 220px}
+.controls input{font:13px var(--mono);padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);width:100%}
+.controls input:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{font:500 13px var(--display);padding:8px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--bg);cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.status{font-family:var(--mono);font-size:12px;color:var(--muted);flex:1 1 100%}
+.flags{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.flag{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}
+.flag .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.flag .v{font-family:var(--mono);font-size:13px;margin-top:4px;word-break:break-word}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+th:hover{color:var(--fg)} th.on{color:var(--accent)}
+td:first-child,th:first-child{text-align:left}
+td.t{font-family:var(--mono);font-weight:500}
+td.num{font-family:var(--mono);font-size:13px}
+.up{color:var(--up)} .down{color:var(--down)}
+.rsi{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--chip);font-family:var(--mono);font-size:12px}
+.rsi.low{background:var(--up);color:#fff} .rsi.high{background:var(--down);color:#fff}
+.vol{font-weight:600;color:var(--warn)}
+svg.spark{width:92px;height:26px;display:block}
+.legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:70ch}
+.legend b{color:var(--fg);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Stock Boso</h1>
+    <span class="sub">Short-term screener. Numbers only, no picks.</span>
+    <span id="src" class="src demo">DEMO DATA</span>
+  </header>
+
+  <section class="controls">
+    <label>Watchlist (comma separated)
+      <input id="tickers" value="NVDA,AMD,AVGO,TSM,MU,INTC,ARM,MRVL,QCOM,SMCI,AAPL,MSFT,GOOGL,AMZN,META,TSLA,PLTR,COIN,MSTR,HOOD">
+    </label>
+    <label>Twelve Data API key (optional, free at twelvedata.com; kept in this browser only)
+      <input id="apikey" type="password" placeholder="leave blank for demo data" autocomplete="off">
+    </label>
+    <button id="run">Run screen</button>
+    <button id="demo" class="ghost">Load demo</button>
+    <div id="status" class="status">Showing generated demo prices so the layout is visible. Add a key and run for real quotes.</div>
+  </section>
+
+  <section class="flags">
+    <div class="flag"><div class="k">RSI below 35 (stretched down)</div><div id="f-low" class="v">–</div></div>
+    <div class="flag"><div class="k">RSI above 70 (stretched up)</div><div id="f-high" class="v">–</div></div>
+    <div class="flag"><div class="k">Volume over 1.5× 20-day average</div><div id="f-vol" class="v">–</div></div>
+    <div class="flag"><div class="k">Most volatile (ATR %)</div><div id="f-atr" class="v">–</div></div>
+  </section>
+
+  <div class="tablewrap">
+    <table id="tbl">
+      <thead><tr>
+        <th data-k="t">Ticker</th><th data-k="spark">20d</th><th data-k="price">Price</th>
+        <th data-k="d1">1d %</th><th data-k="d5">5d %</th><th data-k="d20">20d %</th>
+        <th data-k="atr">ATR %</th><th data-k="rsi">RSI</th><th data-k="sma20">vs SMA20</th><th data-k="sma50">vs SMA50</th>
+        <th data-k="rng">20d range</th><th data-k="hi">From 6mo hi</th><th data-k="lo">From 6mo lo</th>
+        <th data-k="dvol">Avg $vol (M)</th><th data-k="vr">Vol vs avg</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <div><b>ATR %</b> typical daily swing as a share of price. Scalpers want it high; it cuts both ways.</div>
+    <div><b>Avg $vol</b> dollars traded per day. Under about 100M is hard to exit quickly.</div>
+    <div><b>RSI</b> under 35 means beaten down lately, over 70 means stretched up. A condition, not a forecast.</div>
+    <div><b>20d range</b> 0 = at the 20-day low, 100 = at the 20-day high.</div>
+    <div><b>Vol vs avg</b> above 1.5 means something is happening today. Moves can go either way.</div>
+    <div>Live quotes are end-of-day daily bars, delayed. Use a broker feed for entries. Not financial advice.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const rowsEl=$('rows'), statusEl=$('status'), srcEl=$('src');
+  let rows=[], sortKey='atr', sortDir=-1;
+
+  // ---------- indicators (bars oldest -> newest: {c,h,l,v}) ----------
+  function rsi(bars,n=14){
+    let g=0,l=0;
+    for(let i=bars.length-n;i<bars.length;i++){const d=bars[i].c-bars[i-1].c; if(d>0)g+=d; else l-=d;}
+    g/=n; l/=n; if(l===0) return 100; return 100-100/(1+g/l);
+  }
+  function atrPct(bars,n=14){
+    let s=0;
+    for(let i=bars.length-n;i<bars.length;i++){
+      const b=bars[i],p=bars[i-1].c; s+=Math.max(b.h-b.l,Math.abs(b.h-p),Math.abs(b.l-p));
+    }
+    return s/n/bars[bars.length-1].c*100;
+  }
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const tail=(bars,n,k)=>bars.slice(-n).map(b=>b[k]);
+
+  function analyze(t,bars){
+    const n=bars.length, last=bars[n-1].c, pct=(a,b)=>(a/b-1)*100;
+    const h20=Math.max(...tail(bars,20,'h')), l20=Math.min(...tail(bars,20,'l'));
+    const hAll=Math.max(...bars.map(b=>b.h)), lAll=Math.min(...bars.map(b=>b.l));
+    const avgV=mean(tail(bars,20,'v'));
+    return {
+      t, price:last, d1:pct(last,bars[n-2].c), d5:pct(last,bars[n-6].c), d20:pct(last,bars[n-21].c),
+      atr:atrPct(bars), rsi:rsi(bars),
+      sma20:pct(last,mean(tail(bars,20,'c'))), sma50:pct(last,mean(tail(bars,50,'c'))),
+      rng:h20===l20?50:(last-l20)/(h20-l20)*100, hi:pct(last,hAll), lo:pct(last,lAll),
+      dvol:avgV*last/1e6, vr:avgV?bars[n-1].v/avgV:0, spark:tail(bars,20,'c')
+    };
+  }
+
+  // ---------- demo data: seeded random walk, clearly labelled ----------
+  function demoBars(t){
+    let seed=0; for(const ch of t) seed=(seed*31+ch.charCodeAt(0))>>>0;
+    const rnd=()=>{seed=(seed*1664525+1013904223)>>>0; return seed/4294967296;};
+    const bars=[]; let c=20+rnd()*400; const vol=.015+rnd()*.03;
+    for(let i=0;i<130;i++){
+      const r=(rnd()-.5+ (rnd()-.5))*vol*2; const o=c; c=Math.max(1,c*(1+r));
+      const h=Math.max(o,c)*(1+rnd()*vol*.6), l=Math.min(o,c)*(1-rnd()*vol*.6);
+      bars.push({c,h,l,v:(2e6+rnd()*4e7)*(1+(i===129&&rnd()>.75?1.2:0))});
+    }
+    return bars;
+  }
+
+  // ---------- live data: Twelve Data, batched to respect the free tier ----------
+  async function fetchBatch(syms,key){
+    const url='https://api.twelvedata.com/time_series?symbol='+syms.join(',')+'&interval=1day&outputsize=130&apikey='+encodeURIComponent(key);
+    const r=await fetch(url); if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json(); const out={};
+    const one=(s,o)=>{ if(!o||o.status==='error'||!o.values) return;
+      out[s]=o.values.slice().reverse().map(v=>({c:+v.close,h:+v.high,l:+v.low,v:+v.volume||0})); };
+    if(syms.length===1) one(syms[0],j); else for(const s of syms) one(s,j[s]);
+    if(j.status==='error') throw new Error(j.message||'API error');
+    return out;
+  }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  async function runLive(tickers,key){
+    const all={}, size=8;
+    for(let i=0;i<tickers.length;i+=size){
+      const batch=tickers.slice(i,i+size);
+      statusEl.textContent='Fetching '+batch.join(', ')+'…';
+      Object.assign(all,await fetchBatch(batch,key));
+      if(i+size<tickers.length){ for(let s=61;s>0;s--){statusEl.textContent='Free tier allows 8 symbols per minute. Next batch in '+s+'s…'; await sleep(1000);} }
+    }
+    return all;
+  }
+
+  // ---------- render ----------
+  const f=(x,d=2)=>x.toFixed(d);
+  const pc=x=>'<td class="num '+(x>0?'up':x<0?'down':'')+'">'+(x>0?'+':'')+f(x)+'%</td>';
+  function spark(a){
+    const w=92,h=26,mn=Math.min(...a),mx=Math.max(...a),sp=mx-mn||1;
+    const pts=a.map((v,i)=>(i/(a.length-1)*(w-2)+1).toFixed(1)+','+((h-2)-(v-mn)/sp*(h-4)).toFixed(1)).join(' ');
+    const col=a[a.length-1]>=a[0]?'var(--up)':'var(--down)';
+    return '<svg class="spark" viewBox="0 0 '+w+' '+h+'"><polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5"/></svg>';
+  }
+  function render(){
+    const sorted=rows.slice().sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;});
+    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td>'+spark(r.spark)+'</td><td class="num">'+f(r.price)+'</td>'+
+      pc(r.d1)+pc(r.d5)+pc(r.d20)+'<td class="num">'+f(r.atr)+'</td>'+
+      '<td><span class="rsi '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
+      pc(r.sma20)+pc(r.sma50)+'<td class="num">'+f(r.rng,0)+'</td>'+pc(r.hi)+pc(r.lo)+
+      '<td class="num">'+f(r.dvol,1)+'</td><td class="num'+(r.vr>1.5?' vol':'')+'">'+f(r.vr)+'×</td></tr>').join('');
+    document.querySelectorAll('th').forEach(th=>th.classList.toggle('on',th.dataset.k===sortKey));
+    const names=p=>rows.filter(p).map(r=>r.t).join(', ')||'none';
+    $('f-low').textContent=names(r=>r.rsi<35); $('f-high').textContent=names(r=>r.rsi>70); $('f-vol').textContent=names(r=>r.vr>1.5);
+    $('f-atr').textContent=rows.slice().sort((a,b)=>b.atr-a.atr).slice(0,4).map(r=>r.t+' '+f(r.atr,1)+'%').join(', ');
+  }
+  document.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k; if(k==='spark') return;
+    if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=k==='t'?1:-1;} render();
+  }));
+
+  function tickers(){ return $('tickers').value.toUpperCase().split(/[\s,]+/).filter(Boolean); }
+  function loadDemo(){
+    rows=tickers().map(t=>analyze(t,demoBars(t)));
+    srcEl.textContent='DEMO DATA'; srcEl.className='src demo';
+    statusEl.textContent='Demo prices are generated, not real. Add a Twelve Data key and run for live quotes.';
+    render();
+  }
+  $('demo').addEventListener('click',loadDemo);
+  $('run').addEventListener('click',async()=>{
+    const key=$('apikey').value.trim(); if(!key){ loadDemo(); return; }
+    try{ localStorage.setItem('sb_key',key); }catch(e){}
+    $('run').disabled=true;
+    try{
+      const data=await runLive(tickers(),key);
+      const got=Object.keys(data).filter(s=>data[s].length>=60);
+      if(!got.length) throw new Error('No usable data came back. Check the key and symbols.');
+      rows=got.map(t=>analyze(t,data[t]));
+      srcEl.textContent='LIVE · '+new Date().toLocaleString(); srcEl.className='src live';
+      const missed=tickers().filter(t=>!got.includes(t));
+      statusEl.textContent='Loaded '+got.length+' symbols from Twelve Data.'+(missed.length?' Skipped (no data): '+missed.join(', '):'');
+      render();
+    }catch(e){ statusEl.textContent='Could not load live data: '+e.message; }
+    $('run').disabled=false;
+  });
+  try{ const k=localStorage.getItem('sb_key'); if(k) $('apikey').value=k; }catch(e){}
+  loadDemo();
+})();
+</script>
