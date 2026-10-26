@@ -81,6 +81,13 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
 .notes li{padding:6px 8px 6px 12px;border-left:3px solid var(--line);background:var(--bg);border-radius:0 4px 4px 0}
 .notes li.ok{border-left-color:var(--up)} .notes li.bad{border-left-color:var(--down)} .notes li.mid{border-left-color:var(--warn)}
 .notes li.verdict{border-left-color:var(--fg);background:var(--chip)}
+.notice{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);display:grid;gap:6px;max-width:100ch}
+.notice p{margin:0}
+.notice b{color:var(--fg)}
+.notice a{color:var(--accent)}
+.ntitle{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);font-weight:600}
+footer{font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
+footer a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -89,6 +96,14 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
     <h1>Stock Boso</h1>
     <span class="sub">Swing screener. Ranks setups and shows the evidence; the decision stays with you.</span>
   </header>
+
+  <section class="notice">
+    <div class="ntitle">What this is</div>
+    <p>An experimental stock screener built by <b>Valencia AI</b> for testing and learning. It matches daily price data against a written set of rules and shows you the result. It has not been backtested, and nothing here is a prediction.</p>
+    <p><b>Not financial advice.</b> Valencia AI is not a licensed advisor, broker or dealer. Nothing on this page is a recommendation to buy, sell or hold anything. Any trade you make is your own decision and your own risk. Do your own research and consider talking to a licensed professional.</p>
+    <p><b>Data.</b> The page opens with generated demo prices. For real quotes, sign up for a free API key at <a href="https://twelvedata.com" target="_blank" rel="noopener">twelvedata.com</a>, paste it below and click Run screen. Your key is stored only in this browser and requests go directly from you to Twelve Data. Quotes are end-of-day daily bars, delayed, for personal use only. Earnings dates may be estimates; confirm on the company's investor-relations site.</p>
+    <p>Valencia AI accepts no liability for losses arising from use of this tool. By using it you agree to these terms.</p>
+  </section>
 
   <div class="statusbar">
     <span id="src" class="src demo">DEMO DATA</span>
@@ -161,6 +176,8 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
       <div>Daily bars from Twelve Data are delayed and not for redistribution. Use a broker feed for entries. Not financial advice.</div>
     </div>
   </details>
+
+  <footer>Stock Boso · an experiment by Valencia AI · not financial advice · <a href="https://github.com/clarkstyx/stock-boso" target="_blank" rel="noopener">source on GitHub</a></footer>
 </div>
 
 <script>
