@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: status strip, controls, setup summary cards, then a dense sortable ledger with sparklines. */
+/* Layout: notice, status strip, controls, setup cards, a compact-by-default ledger with a "full numbers" toggle, chart panel on click. */
 :root{
   --bg:#f5f7f4; --panel:#ffffff; --fg:#1a2420; --muted:#5f6d66; --line:#d8e0da;
   --accent:#1f6f5a; --up:#1f8a4c; --down:#c2403a; --warn:#b67a12; --chip:#e9efeb;
@@ -21,10 +21,20 @@ body{background:var(--bg);color:var(--fg);font-family:var(--display);font-size:1
 header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px}
 h1{font-size:22px;font-weight:600;margin:0;letter-spacing:-.01em}
 .sub{color:var(--muted)}
+.ver{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.notice{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);display:grid;gap:6px;max-width:100ch}
+.notice p{margin:0} .notice b{color:var(--fg)} .notice a{color:var(--accent)}
+.ntitle{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);font-weight:600}
+.howto{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13px}
+.howto summary{font-weight:600;color:var(--accent);cursor:pointer}
+.howgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:8px}
+@media (max-width:760px){.howgrid{grid-template-columns:1fr}}
+.howto h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
+.howto ol,.howto ul{margin:0;padding-left:20px;display:grid;gap:5px;max-width:65ch}
+.howto a{color:var(--accent)}
 .statusbar{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;align-items:center}
 .src{padding:2px 9px;border-radius:4px;background:var(--chip);color:var(--muted);font-weight:500}
-.src.live{background:var(--accent);color:var(--bg)}
-.src.demo{background:var(--warn);color:#fff}
+.src.live{background:var(--accent);color:var(--bg)} .src.demo{background:var(--warn);color:#fff}
 .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
 .controls label{font-size:12px;color:var(--muted);display:grid;gap:4px;min-width:0;flex:1 1 220px}
 .controls label.cb{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding-bottom:7px}
@@ -35,45 +45,43 @@ button.ghost{background:transparent;color:var(--accent)}
 button:disabled{opacity:.5;cursor:default}
 button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .msg{font-family:var(--mono);font-size:12px;color:var(--muted);flex:1 1 100%}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0;border-left:4px solid var(--line)}
-.card.b{border-left-color:var(--up)} .card.p{border-left-color:var(--accent)} .card.x{border-left-color:var(--warn)} .card.e{border-left-color:var(--down)} .card.s{border-left-color:var(--fg)}
+.card.b{border-left-color:var(--up)} .card.p{border-left-color:var(--accent)} .card.w{border-left-color:var(--warn)} .card.e{border-left-color:var(--down)} .card.s{border-left-color:var(--fg)}
 .card .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .card .v{font-family:var(--mono);font-size:13px;margin-top:4px;word-break:break-word}
 .card .d{font-size:11px;color:var(--muted);margin-top:4px}
+.tablebar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
-table{border-collapse:collapse;width:100%;min-width:1100px;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+table.full{min-width:1250px}
 th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
 th:hover{color:var(--fg)} th.on{color:var(--accent)}
-td:first-child,th:first-child,td.setup,th.setup{text-align:left}
-td.t{font-family:var(--mono);font-weight:500}
+td:first-child,th:first-child,.l{text-align:left}
+table:not(.full) .x{display:none}
+td.t{font-family:var(--mono);font-weight:500;cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
+td.t:hover{color:var(--accent)}
 td.num{font-family:var(--mono);font-size:13px}
 .up{color:var(--up)} .down{color:var(--down)}
-.pill{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--chip);font-family:var(--mono);font-size:12px}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--chip);font-family:var(--mono);font-size:12px;margin-right:3px}
 .pill.low{background:var(--up);color:#fff} .pill.high{background:var(--down);color:#fff}
-.pill.b{background:var(--up);color:#fff} .pill.p{background:var(--accent);color:var(--bg)} .pill.x{background:var(--warn);color:#fff} .pill.dn{background:var(--down);color:#fff}
-.pill.soon{background:var(--down);color:#fff;font-weight:500}
+.pill.bc{background:var(--up);color:#fff} .pill.bw{background:var(--up);color:#fff;opacity:.75} .pill.p{background:var(--accent);color:var(--bg)} .pill.dn{background:var(--down);color:#fff}
+.pill.warn{background:var(--warn);color:#fff} .pill.risk{background:var(--down);color:#fff} .pill.soon{background:var(--down);color:#fff}
 .vol{font-weight:600;color:var(--warn)}
+svg.spark{width:92px;height:26px;display:block}
 .meter{display:flex;align-items:center;gap:8px;cursor:help}
-.meter .bar{width:80px;height:8px;border-radius:4px;background:var(--chip);overflow:hidden;flex:none}
+.meter .bar{width:72px;height:8px;border-radius:4px;background:var(--chip);overflow:hidden;flex:none}
 .meter .bar i{display:block;height:100%;background:var(--accent)}
 .meter .num{font-family:var(--mono);font-size:13px;width:2ch;text-align:right}
 .meter .al{font-size:11px;color:var(--muted)}
-svg.spark{width:92px;height:26px;display:block}
-.legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:78ch}
-.legend b{color:var(--fg);font-weight:600}
-details summary{cursor:pointer;color:var(--accent);font-size:13px}
-td.t{cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
-td.t:hover{color:var(--accent)}
 .detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
 .dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .dtitle{font-family:var(--mono);font-size:18px;font-weight:600}
 .dgrid{display:grid;grid-template-columns:minmax(0,3fr) minmax(260px,2fr);gap:14px}
 @media (max-width:820px){.dgrid{grid-template-columns:1fr}}
 .charts{min-width:0;display:grid;gap:4px}
-canvas.cv-price{width:100%;height:300px;display:block}
-canvas.cv-rsi{width:100%;height:90px;display:block}
+canvas.cv-price{width:100%;height:300px;display:block} canvas.cv-rsi{width:100%;height:90px;display:block}
 .legend2{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted)}
 .legend2 i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
 .legend2 i.band{height:10px;background:var(--accent);opacity:.18}
@@ -81,18 +89,10 @@ canvas.cv-rsi{width:100%;height:90px;display:block}
 .notes li{padding:6px 8px 6px 12px;border-left:3px solid var(--line);background:var(--bg);border-radius:0 4px 4px 0}
 .notes li.ok{border-left-color:var(--up)} .notes li.bad{border-left-color:var(--down)} .notes li.mid{border-left-color:var(--warn)}
 .notes li.verdict{border-left-color:var(--fg);background:var(--chip)}
-.notice{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted);display:grid;gap:6px;max-width:100ch}
-.notice p{margin:0}
-.notice b{color:var(--fg)}
-.notice a{color:var(--accent)}
-.ntitle{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--warn);font-weight:600}
-.howto{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13px}
-.howto summary{font-weight:600;color:var(--accent);cursor:pointer}
-.howgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-top:8px}
-@media (max-width:760px){.howgrid{grid-template-columns:1fr}}
-.howto h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
-.howto ol,.howto ul{margin:0;padding-left:20px;display:grid;gap:5px;max-width:65ch}
-.howto a{color:var(--accent)}
+.notes li .n{font-family:var(--mono);font-size:12px;color:var(--muted);display:block;margin-top:2px}
+.legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:78ch}
+.legend b{color:var(--fg);font-weight:600}
+details summary{cursor:pointer;color:var(--accent);font-size:13px}
 footer{font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
 footer a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -102,6 +102,7 @@ footer a{color:var(--accent)}
   <header>
     <h1>Stock Boso</h1>
     <span class="sub">Swing screener. Ranks setups and shows the evidence; the decision stays with you.</span>
+    <span class="ver">rules v2.1</span>
   </header>
 
   <section class="notice">
@@ -126,30 +127,24 @@ footer a{color:var(--accent)}
         <h3>Every time you look</h3>
         <ol start="5">
           <li>Click <b>Run screen</b> to refresh. Best after 4pm Eastern, when the day's bar is final.</li>
-          <li>Read the five cards first. Breakout candidates: trending up, near the recent high. Pullback watch: trending up, dipped back to its average. Extended: already ran too far, don't chase. Strongest alignment: best rule match today (not a prediction). Earnings within 7 days: avoid, it's a coin flip.</li>
-          <li>Click a ticker name to open its chart and notes. Green note: good for a buyer. Red: bad. Amber: neutral. The top note gives the verdict and why.</li>
+          <li>Read the cards first. Breakout: closed above its prior 20-day high today (confirmed) or sitting just under it (watch). Pullback watch: healthy uptrend that dipped back to its average. Warnings: extended or heavy selling, read before anything else. Earnings within 7 days: avoid, it's a coin flip.</li>
+          <li>Click a ticker name to open its chart and notes. The top note gives the verdict and why.</li>
         </ol>
       </div>
       <div>
-        <h3>Before you buy anything, answer these four</h3>
+        <h3>Before you buy anything</h3>
         <ol start="8">
-          <li><b>Is it a Breakout candidate or Pullback watch?</b> If "No setup" or "Downtrend", there is no reason to buy today. Wait.</li>
-          <li><b>Earnings more than 7 days away?</b> If not, wait until after the report.</li>
-          <li><b>Where is your stop?</b> The notes give a number: "a 1.5× ATR stop would sit about $X below entry". If price gets there, you sell. No arguing with it.</li>
-          <li><b>How many shares?</b> Risk 1–2% of your account per trade. Example: $5,000 account, 1% = $50 risk. Stop is $12 below entry, so $50 ÷ $12 = 4 shares. Even if you "feel good" about it.</li>
+          <li><b>Is the data current and the setup confirmed?</b> Green LIVE badge, bar date is the last trading day. "No setup", "Downtrend" or a "watch" label that hasn't triggered means wait.</li>
+          <li><b>Earnings and news?</b> More than 7 days from earnings, and you've read today's news on it.</li>
+          <li><b>What price proves you wrong?</b> Pick the stop from the chart (below the pullback low, below the breakout level). The notes show the ATR so you can check the distance is reasonable. A stop order does not guarantee that price; gaps happen.</li>
+          <li><b>How many shares?</b> While learning, risk 0.25–0.5% of your account per trade. Shares = risk amount ÷ (entry − stop). Example: $5,000 account, 0.5% = $25 risk; stop $12 below entry → 2 shares. Round down.</li>
+          <li><b>Already holding similar stocks?</b> Five small tech trades are one big tech bet. Could you handle all of them gapping down together overnight?</li>
         </ol>
         <h3>What it can't do</h3>
         <ul>
           <li>Predict. A score of 85 means "matches the rules well today", not "85% chance it goes up".</li>
-          <li>Read the news. Check the news yourself before buying.</li>
-          <li>Prove itself yet. It is new and untested. A second opinion, not an expert.</li>
-        </ul>
-        <h3>Don't</h3>
-        <ul>
-          <li>Buy a Downtrend stock because it "looks cheap".</li>
-          <li>Buy two days before earnings.</li>
-          <li>Skip the stop because "it'll come back".</li>
-          <li>Put most of your money in one stock. If you're investing for years, this tool is the wrong one; it looks at 20 days.</li>
+          <li>Read the news. Check it yourself before buying.</li>
+          <li>Prove itself yet. New and untested. A second opinion, not an expert. Consider paper trading first.</li>
         </ul>
       </div>
     </div>
@@ -178,21 +173,25 @@ footer a{color:var(--accent)}
   </section>
 
   <section class="cards">
-    <div class="card b"><div class="k">Breakout candidates</div><div id="c-b" class="v">–</div><div class="d">Uptrend, near 20-day high, not extended</div></div>
-    <div class="card p"><div class="k">Pullback watch</div><div id="c-p" class="v">–</div><div class="d">Uptrend, price back at SMA20, RSI 40–60</div></div>
-    <div class="card x"><div class="k">Extended</div><div id="c-x" class="v">–</div><div class="d">More than 2.5 ATR above SMA20 or RSI over 75</div></div>
-    <div class="card s"><div class="k">Strongest breakout alignment</div><div id="c-s" class="v">–</div><div class="d">Top scores. Hover a bar for the five-part breakdown.</div></div>
+    <div class="card b"><div class="k">Breakout: confirmed / watch</div><div id="c-b" class="v">–</div><div class="d">Closed above the prior 20-day high today / sitting within 1 ATR of it in an uptrend</div></div>
+    <div class="card p"><div class="k">Pullback watch</div><div id="c-p" class="v">–</div><div class="d">Rising SMA50, price back near SMA20, RSI 40–60, RS not weak</div></div>
+    <div class="card s"><div class="k">Strongest breakout alignment</div><div id="c-s" class="v">–</div><div class="d">Top scores. Hover a bar for the breakdown. Not a prediction.</div></div>
+    <div class="card w"><div class="k">Warnings</div><div id="c-w" class="v">–</div><div class="d">Extended (stretched above SMA20) or heavy selling (big volume, weak close)</div></div>
     <div class="card e"><div class="k">Earnings within 7 days</div><div id="c-e" class="v">–</div><div class="d">Setups near earnings are coin flips. Check the date on investor relations.</div></div>
   </section>
 
+  <div class="tablebar">
+    <span class="sub">Click a ticker for its chart. Hover a score for the breakdown.</span>
+    <button id="toggle" class="ghost">Show full numbers</button>
+  </div>
   <div class="tablewrap">
     <table id="tbl">
       <thead><tr>
-        <th data-k="t">Ticker</th><th data-k="setup" class="setup">Setup</th><th data-k="score" class="setup">Breakout alignment</th><th data-k="edays">Earnings</th><th data-k="spark">20d</th><th data-k="price">Price</th>
-        <th data-k="d1">1d %</th><th data-k="d5">5d %</th><th data-k="d20">20d %</th>
-        <th data-k="rsQ">RS vs QQQ</th><th data-k="rsS">RS vs SMH</th>
-        <th data-k="atr">ATR %</th><th data-k="rsi">RSI</th><th data-k="sma20">vs SMA20</th><th data-k="sma50">vs SMA50</th>
-        <th data-k="rng">20d range</th><th data-k="dvol">Avg $vol (M)</th><th data-k="vr">Vol vs avg</th>
+        <th data-k="t">Ticker</th><th data-k="setup" class="l">Setup</th><th data-k="flags" class="l">Flags</th><th data-k="score" class="l">Breakout alignment</th>
+        <th data-k="rsB">RS vs bench</th><th data-k="atr">ATR %</th><th data-k="edays">Earnings</th><th data-k="spark">20d</th><th data-k="price">Price</th>
+        <th data-k="d1" class="x">1d %</th><th data-k="d5" class="x">5d %</th><th data-k="d20" class="x">20d %</th><th data-k="rsQ" class="x">RS vs QQQ</th>
+        <th data-k="rsi" class="x">RSI</th><th data-k="sma20" class="x">vs SMA20</th><th data-k="sma50" class="x">vs SMA50</th>
+        <th data-k="rng" class="x">20d range</th><th data-k="dvol" class="x">Avg $vol (M)</th><th data-k="vr" class="x">Vol vs avg</th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -207,23 +206,23 @@ footer a{color:var(--accent)}
       <div class="charts">
         <canvas id="cv-price" class="cv-price"></canvas>
         <canvas id="cv-rsi" class="cv-rsi"></canvas>
-        <div class="legend2"><span><i style="background:var(--accent)"></i>SMA20</span><span><i style="background:var(--muted)"></i>SMA50</span><span><i class="band"></i>20-day high/low</span><span><i style="background:var(--up)"></i>up day</span><span><i style="background:var(--down)"></i>down day</span></div>
+        <div class="legend2"><span><i style="background:var(--accent)"></i>SMA20</span><span><i style="background:var(--muted)"></i>SMA50</span><span><i class="band"></i>prior 20-day high/low</span><span><i style="background:var(--up)"></i>up day</span><span><i style="background:var(--down)"></i>down day</span></div>
       </div>
       <ul id="d-notes" class="notes"></ul>
     </div>
   </section>
 
   <details>
-    <summary>How the columns and setup labels are computed</summary>
+    <summary>Rules v2.1: how labels, flags and the score are computed</summary>
     <div class="legend" style="margin-top:8px">
-      <div><b>Setup labels</b> are rule matches, not predictions. <b>Breakout candidate</b>: price above SMA20 above SMA50, SMA20 rising, price in the top 15% of its 20-day range and within 1 ATR of the 20-day high. <b>Pullback watch</b>: SMA20 above SMA50, price above SMA50, price within −1.5 to +0.5 ATR of SMA20, RSI between 40 and 60. <b>Extended</b>: price more than 2.5 ATR above SMA20, or RSI above 75. <b>Downtrend</b>: price below SMA20 below SMA50. Otherwise <b>no setup</b>.</div>
-      <div><b>Breakout alignment (0–100)</b> how many of the momentum-breakout strategy's conditions are met, grouped into five buckets so correlated signals don't double count: Trend 25 (price vs SMA20/SMA50, SMA20 slope), Relative strength 25 (RS vs QQQ and SMH, full marks at +5 pts), Setup 20 (range position, within 1 ATR of the 20-day high, not extended), Volume 15 (relative volume, halved on a down day), Momentum 15 (RSI zone, 5-day return, acceleration). 75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. <b>It is not a probability.</b> A 78 means the stock matches the strategy's rules well today, not that it has a 78% chance of rising. The earnings badge is deliberately kept outside the score.</div>
-      <div><b>RS vs QQQ / SMH</b> 20-day return of the stock minus the 20-day return of the benchmark, in percentage points. Positive means it is leading the index, not just riding it.</div>
-      <div><b>ATR %</b> 14-day Wilder ATR (includes overnight gaps) as a share of price. <b>RSI</b> 14-day Wilder RSI, matching TradingView. Over 70 is not an automatic sell; in a strong trend it can stay high.</div>
-      <div><b>Avg $vol</b> mean of close × volume over the last 20 completed sessions. <b>Vol vs avg</b> latest session volume against the 20 sessions before it (the latest is excluded from the baseline). During market hours the latest bar is partial, so this understates activity until the close.</div>
-      <div><b>20d range</b> uses intraday highs and lows: 0 = at the low, 100 = at the high.</div>
-      <div><b>Snapshots</b> each run is saved in this browser (date, ticker, setup, score inputs) so forward returns can be measured later. Copy as CSV to keep it elsewhere.</div>
-      <div>Daily bars from Twelve Data are delayed and not for redistribution. Use a broker feed for entries. Not financial advice.</div>
+      <div><b>Benchmark</b> each stock is compared with one benchmark: SMH for semiconductor names, QQQ for everything else. <b>RS vs bench</b> is the stock's 20-day return minus the benchmark's, in percentage points. Inside the score it is divided by the stock's ATR % so that +5 pts on a calm stock counts for more than +5 pts on a wild one.</div>
+      <div><b>Prior 20-day high/low</b> use sessions t−20 to t−1 and exclude today, so today's bar cannot be its own breakout level.</div>
+      <div><b>Setup labels</b> (one per stock). <b>Breakout confirmed</b>: close above the prior 20-day high, price above SMA20 above SMA50, SMA20 rising. <b>Breakout watch</b>: same trend, close within 1 ATR below the prior high and in the top 15% of the prior range. <b>Pullback watch</b>: SMA20 above SMA50, SMA50 rising, price above SMA50, price within −1.5 to +0.5 ATR of SMA20, RSI 40–60, RS vs bench no worse than −1 ATR. <b>Downtrend</b>: price below SMA20 below SMA50. Otherwise <b>No setup</b>.</div>
+      <div><b>Flags</b> (can coexist with any label). <b>Extended</b>: more than 2.5 ATR above SMA20 or RSI above 75. <b>Heavy selling</b>: volume 1.5× average with a close in the bottom 40% of the day's range and below the prior close. <b>Earnings</b> ≤ 7 days. <b>Incomplete</b>: benchmark data missing, score withheld.</div>
+      <div><b>Breakout alignment (0–100)</b>, five buckets. <b>Trend 25</b>: price above SMA20 (8), SMA20 above SMA50 (8), SMA20 rising (5), SMA50 rising (4). <b>Relative strength 25</b>: RS vs bench in ATR units, full 15 at 2.5 ATR; benchmark regime 10: benchmark above its SMA50 (6) and that SMA50 rising (4). <b>Setup 20</b>: position in the prior range from 60% to 100% (0→10), within 1 ATR of the prior high (5), closed above it (5). <b>Volume 15</b>: relative volume scaled 0.8×→2.0×, awarded only if the close is in the upper half of the day's range and above the prior close; otherwise 0. <b>Momentum 15</b>: RSI ramps 40→55 (0→8), flat 55–68, ramps 68→78 (8→0); last 5 days positive (4); last 5 days stronger than the 5 before and positive (3).</div>
+      <div>75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. <b>Not a probability.</b> An 80 means the stock matches the momentum-breakout rules well today. The score is shown next to pullback labels for context only; a pullback score is a later addition.</div>
+      <div><b>ATR %</b> 14-day Wilder ATR as a share of price. <b>RSI</b> 14-day Wilder. <b>Avg $vol</b> mean of close × volume over the last 20 completed sessions. <b>Vol vs avg</b> latest session against the 20 before it; understated while the market is open.</div>
+      <div><b>Snapshots</b> every run is saved in this browser with the rules version, source (live, live-intraday, demo), setup, flags and score so results can be checked later. Copy as CSV to keep it elsewhere.</div>
     </div>
   </details>
 
@@ -232,13 +231,15 @@ footer a{color:var(--accent)}
 
 <script>
 (function(){
+  const RULES='v2.1';
   const $=id=>document.getElementById(id);
   const rowsEl=$('rows'), msgEl=$('msg'), srcEl=$('src');
   const BENCH=['QQQ','SMH'];
+  const SEMIS=new Set(['NVDA','AMD','AVGO','TSM','MU','INTC','ARM','MRVL','QCOM','SMCI','TXN','ADI','LRCX','AMAT','KLAC','ASML','ON','MCHP','NXPI','MPWR']);
+  const benchFor=t=>SEMIS.has(t)?'SMH':'QQQ';
   let rows=[], sortKey='setupRank', sortDir=1;
 
   // ---------- indicators. bars oldest -> newest: {d,o,c,h,l,v} ----------
-  // Wilder RSI: seeded with a simple average, then smoothed. Matches TradingView's RSI(14).
   function rsiWilder(bars,n=14){
     let g=0,l=0;
     for(let i=1;i<=n;i++){const d=bars[i].c-bars[i-1].c; if(d>0)g+=d; else l-=d;}
@@ -246,7 +247,6 @@ footer a{color:var(--accent)}
     for(let i=n+1;i<bars.length;i++){const d=bars[i].c-bars[i-1].c; g=(g*(n-1)+Math.max(d,0))/n; l=(l*(n-1)+Math.max(-d,0))/n;}
     return l===0?100:100-100/(1+g/l);
   }
-  // Wilder ATR: true range includes the overnight gap vs previous close.
   function atrWilder(bars,n=14){
     const tr=i=>{const b=bars[i],p=bars[i-1].c; return Math.max(b.h-b.l,Math.abs(b.h-p),Math.abs(b.l-p));};
     let a=0; for(let i=1;i<=n;i++) a+=tr(i); a/=n;
@@ -254,157 +254,70 @@ footer a{color:var(--accent)}
     return a;
   }
   const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
-  const tail=(bars,n,k)=>bars.slice(-n).map(b=>b[k]);
   const pct=(a,b)=>(a/b-1)*100;
+  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+  const ramp=(x,x0,x1)=>clamp((x-x0)/(x1-x0),0,1);   // 0 at x0, 1 at x1
 
-  function analyze(t,bars,bench,earnDate){
-    const n=bars.length, last=bars[n-1].c;
-    const h20=Math.max(...tail(bars,20,'h')), l20=Math.min(...tail(bars,20,'l'));
-    const atr=atrWilder(bars), atrP=atr/last*100;
-    const sma20=mean(tail(bars,20,'c')), sma50=mean(tail(bars,50,'c'));
-    const sma20prev=mean(bars.slice(-25,-5).map(b=>b.c));          // SMA20 five sessions ago, for slope
-    // Dollar volume: average of each completed session's close x volume (exclude latest, may be partial)
-    const dvol=mean(bars.slice(-21,-1).map(b=>b.c*b.v))/1e6;
-    const baseV=mean(bars.slice(-21,-1).map(b=>b.v));                  // baseline excludes the latest bar
-    const d20=pct(last,bars[n-21].c), rsi=rsiWilder(bars);
-    const rs=k=>bench[k]?d20-bench[k]:null;
-    const edays=earnDate?Math.round((new Date(earnDate)-new Date(bars[n-1].d))/864e5):null;
+  // Benchmark context: 20-day return and trend regime
+  function benchInfo(bars){
+    if(!bars||bars.length<61) return null;
+    const n=bars.length, c=bars[n-1].c, sma50=mean(bars.slice(-50).map(b=>b.c)), sma50prev=mean(bars.slice(-60,-10).map(b=>b.c));
+    return {d20:pct(c,bars[n-21].c), aboveSma50:c>sma50, sma50Rising:sma50>sma50prev};
+  }
 
-    // ----- setup rules (transparent, documented on the page) -----
-    const up=last>sma20&&sma20>sma50&&sma20>sma20prev;
-    const distSma20=(last-sma20)/atr;
-    let setup='No setup', cls='', rank=4;
-    if(distSma20>2.5||rsi>75){setup='Extended';cls='x';rank=2;}
-    else if(up&&(last-l20)/(h20-l20||1)>=.85&&(h20-last)<=atr){setup='Breakout candidate';cls='b';rank=0;}
-    else if(sma20>sma50&&last>sma50&&distSma20>=-1.5&&distSma20<=.5&&rsi>=40&&rsi<=60){setup='Pullback watch';cls='p';rank=1;}
-    else if(last<sma20&&sma20<sma50){setup='Downtrend';cls='dn';rank=3;}
+  function analyze(t,bars,benches,earnDate){
+    const n=bars.length, last=bars[n-1], c=last.c, prevC=bars[n-2].c;
+    const prior=bars.slice(n-21,n-1);                                   // t-20 .. t-1, excludes today
+    const ph=Math.max(...prior.map(b=>b.h)), pl=Math.min(...prior.map(b=>b.l));
+    const atr=atrWilder(bars), atrP=atr/c*100;
+    const sma20=mean(bars.slice(-20).map(b=>b.c)), sma50=mean(bars.slice(-50).map(b=>b.c));
+    const sma20prev=mean(bars.slice(-25,-5).map(b=>b.c)), sma50prev=mean(bars.slice(-60,-10).map(b=>b.c));
+    const completed=bars.slice(-21,-1);
+    const dvol=mean(completed.map(b=>b.c*b.v))/1e6, baseV=mean(completed.map(b=>b.v));
+    const vr=baseV?last.v/baseV:0, closeLoc=last.h>last.l?(c-last.l)/(last.h-last.l):.5;
+    const d1=pct(c,prevC), d5=pct(c,bars[n-6].c), d20=pct(c,bars[n-21].c), prev5=pct(bars[n-6].c,bars[n-11].c);
+    const rsi=rsiWilder(bars);
+    const bname=benchFor(t), B=benches[bname], BQ=benches.QQQ;
+    const rsB=B?d20-B.d20:null, rsQ=BQ?d20-BQ.d20:null, rsNorm=rsB==null?null:rsB/atrP;
+    const edays=earnDate?Math.round((new Date(earnDate)-new Date(last.d))/864e5):null;
+    const rangePos=ph===pl?.5:(c-pl)/(ph-pl);                           // can exceed 1 after a breakout
+    const distSma20=(c-sma20)/atr;
 
-    // ----- Breakout alignment score, 0-100. A summary of how many of the strategy's
-    //       conditions are met, grouped so correlated signals don't double count.
-    //       It is NOT a probability of going up. -----
-    const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
-    const d5=pct(last,bars[n-6].c), d1=pct(last,bars[n-2].c), vr=baseV?bars[n-1].v/baseV:0;
-    const rsQ=rs('QQQ'), rsS=rs('SMH');
+    // ----- label (one) -----
+    const up=c>sma20&&sma20>sma50&&sma20>sma20prev;
+    let setup='No setup', cls='', rank=5;
+    if(up&&c>ph){setup='Breakout confirmed';cls='bc';rank=0;}
+    else if(up&&(ph-c)<=atr&&rangePos>=.85){setup='Breakout watch';cls='bw';rank=1;}
+    else if(sma20>sma50&&sma50>sma50prev&&c>sma50&&distSma20>=-1.5&&distSma20<=.5&&rsi>=40&&rsi<=60&&(rsNorm==null||rsNorm>=-1)){setup='Pullback watch';cls='p';rank=2;}
+    else if(c<sma20&&sma20<sma50){setup='Downtrend';cls='dn';rank=4;}
+
+    // ----- flags (any number) -----
+    const flags=[];
+    if(distSma20>2.5||rsi>75) flags.push('Extended');
+    if(vr>=1.5&&closeLoc<.4&&c<prevC) flags.push('Heavy selling');
+    if(edays!=null&&edays>=0&&edays<=7) flags.push('Earnings');
+    if(rsB==null) flags.push('Incomplete');
+
+    // ----- breakout alignment score, five buckets. NOT a probability. -----
+    const volConfirm=closeLoc>=.5&&c>=prevC;
     const sc={
-      trend:   (last>sma20?8:0)+(sma20>sma50?8:0)+(sma20>sma20prev?5:0)+(last>sma50?4:0),                       // /25
-      rel:     (rsQ==null?12.5:clamp(rsQ/5,0,1)*12.5)+(rsS==null?12.5:clamp(rsS/5,0,1)*12.5),                   // /25 (neutral if no benchmark)
-      setup:   clamp(((last-l20)/(h20-l20||1)-.6)/.4,0,1)*10+((h20-last)<=atr?5:0)+(distSma20<=2.5&&rsi<=75?5:0), // /20
-      volume:  clamp((vr-.8)/1.2,0,1)*15*(d1>=0?1:.5),                                                           // /15 (volume on a down day counts half)
-      momentum:(rsi>=50&&rsi<=70?8:rsi>70&&rsi<=75?5:rsi>=40&&rsi<50?4:0)+(d5>0?4:0)+(d5>d20/4?3:0),            // /15
+      trend:(c>sma20?8:0)+(sma20>sma50?8:0)+(sma20>sma20prev?5:0)+(sma50>sma50prev?4:0),
+      rel:rsNorm==null?null:ramp(rsNorm,0,2.5)*15+(B.aboveSma50?6:0)+(B.sma50Rising?4:0),
+      setup:ramp(rangePos,.6,1)*10+((ph-c)<=atr?5:0)+(c>ph?5:0),
+      volume:volConfirm?ramp(vr,.8,2)*15:0,
+      momentum:(rsi<40?0:rsi<55?ramp(rsi,40,55)*8:rsi<=68?8:rsi<78?(1-ramp(rsi,68,78))*8:0)+(d5>0?4:0)+(d5>prev5&&d5>0?3:0),
     };
-    const score=Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum);
-    const align=score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment';
-    const breakdown='Trend '+sc.trend.toFixed(0)+'/25 · Rel. strength '+sc.rel.toFixed(0)+'/25 · Setup '+sc.setup.toFixed(0)+'/20 · Volume '+sc.volume.toFixed(0)+'/15 · Momentum '+sc.momentum.toFixed(0)+'/15';
+    const score=sc.rel==null?null:Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum);
+    const align=score==null?'Incomplete':score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment';
+    const breakdown=score==null?'Benchmark data missing; score withheld.':'Trend '+sc.trend.toFixed(0)+'/25 · Rel. strength '+sc.rel.toFixed(0)+'/25 · Setup '+sc.setup.toFixed(0)+'/20 · Volume '+sc.volume.toFixed(0)+'/15 · Momentum '+sc.momentum.toFixed(0)+'/15';
 
-    return {t,setup,setupCls:cls,setupRank:rank,edays,earnDate:earnDate||'',score,align,breakdown,
-      price:last,d1:pct(last,bars[n-2].c),d5:pct(last,bars[n-6].c),d20,
-      rsQ,rsS,atr:atrP,rsi,sma20:pct(last,sma20),sma50:pct(last,sma50),
-      rng:h20===l20?50:(last-l20)/(h20-l20)*100,dvol,vr,spark:tail(bars,20,'c'),lastDate:bars[n-1].d,
-      // raw values kept for the chart panel
-      bars,raw:{sma20,sma50,sma20prev,atr,h20,l20,distSma20,up,sc}};
+    return {t,setup,setupCls:cls,setupRank:rank,flags,flagsKey:flags.join(' '),edays,earnDate:earnDate||'',score,align,breakdown,bname,
+      price:c,d1,d5,d20,rsB,rsQ,atr:atrP,rsi,sma20:pct(c,sma20),sma50:pct(c,sma50),rng:rangePos*100,dvol,vr,
+      spark:bars.slice(-20).map(b=>b.c),lastDate:last.d,bars,
+      raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,sc,closeLoc,prev5,rsNorm,B,volConfirm}};
   }
 
-  // ---------- chart panel: real bars, SMA20/50, 20-day range, RSI, and notes ----------
-  function series(bars){
-    const sma=(n)=>bars.map((_,i)=>i<n-1?null:mean(bars.slice(i-n+1,i+1).map(b=>b.c)));
-    const rsi=[]; let g=0,l=0;
-    for(let i=0;i<bars.length;i++){
-      if(i===0){rsi.push(null);continue;} const d=bars[i].c-bars[i-1].c;
-      if(i<=14){g+=Math.max(d,0);l+=Math.max(-d,0); rsi.push(i===14?(l===0?100:100-100/(1+(g/14)/(l/14))):null); if(i===14){g/=14;l/=14;} continue;}
-      g=(g*13+Math.max(d,0))/14; l=(l*13+Math.max(-d,0))/14; rsi.push(l===0?100:100-100/(1+g/l));
-    }
-    return {sma20:sma(20),sma50:sma(50),rsi};
-  }
-  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-  function setupCanvas(cv){
-    const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
-    cv.width=w*dpr; cv.height=h*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
-    return {ctx,w,h};
-  }
-  function drawChart(r){
-    const bars=r.bars.slice(-120), s=series(r.bars), off=r.bars.length-bars.length;
-    const sma20=s.sma20.slice(off), sma50=s.sma50.slice(off), rsiS=s.rsi.slice(off);
-    const fg=css('--fg'), muted=css('--muted'), line=css('--line'), accent=css('--accent'), up=css('--up'), down=css('--down'), warn=css('--warn');
-    const font='11px '+css('--mono');
-
-    // ---- price panel ----
-    const P=setupCanvas($('cv-price')), ctx=P.ctx, padL=8, padR=58, padT=10, padB=22, W=P.w-padL-padR, H=P.h-padT-padB;
-    const all=bars.flatMap(b=>[b.h,b.l]).concat(sma50.filter(x=>x!=null)); const mn=Math.min(...all)*.985, mx=Math.max(...all)*1.015;
-    const x=i=>padL+i/(bars.length-1)*W, y=v=>padT+(1-(v-mn)/(mx-mn))*H;
-    ctx.font=font; ctx.textBaseline='middle';
-    // grid + y labels
-    ctx.strokeStyle=line; ctx.fillStyle=muted; ctx.lineWidth=1;
-    for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4, yy=y(v); ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(padL+W,yy); ctx.stroke(); ctx.fillText(v.toFixed(v>100?0:2),padL+W+6,yy);}
-    // x labels: first of each month
-    ctx.textBaseline='top';
-    bars.forEach((b,i)=>{ if(i>0&&b.d.slice(0,7)!==bars[i-1].d.slice(0,7)){ ctx.fillText(new Date(b.d+'T12:00').toLocaleString('en',{month:'short'}),x(i)-10,padT+H+6); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(x(i),padT); ctx.lineTo(x(i),padT+H); ctx.stroke(); }});
-    // 20-day range band
-    const i0=bars.length-20; ctx.fillStyle=accent; ctx.globalAlpha=.08; ctx.fillRect(x(i0),y(r.raw.h20),x(bars.length-1)-x(i0),y(r.raw.l20)-y(r.raw.h20)); ctx.globalAlpha=1;
-    ctx.setLineDash([3,3]); ctx.strokeStyle=accent; ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.h20)); ctx.lineTo(x(bars.length-1),y(r.raw.h20)); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.l20)); ctx.lineTo(x(bars.length-1),y(r.raw.l20)); ctx.stroke(); ctx.setLineDash([]);
-    // SMA50 (muted), SMA20 (accent)
-    const plot=(arr,col,wid)=>{ctx.strokeStyle=col; ctx.lineWidth=wid; ctx.beginPath(); let started=false; arr.forEach((v,i)=>{ if(v==null) return; if(!started){ctx.moveTo(x(i),y(v));started=true;} else ctx.lineTo(x(i),y(v)); }); ctx.stroke();};
-    plot(sma50,muted,1.5); plot(sma20,accent,1.5);
-    // candles-as-bars: high/low wick plus close tick
-    bars.forEach((b,i)=>{ const col=b.c>=b.o?up:down; ctx.strokeStyle=col; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x(i),y(b.h)); ctx.lineTo(x(i),y(b.l)); ctx.stroke();
-      ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x(i),y(b.c)); ctx.lineTo(x(i)+3,y(b.c)); ctx.stroke(); });
-    // labels at the right edge
-    ctx.textBaseline='middle'; ctx.font='bold '+font;
-    const tag=(v,txt,col)=>{ctx.fillStyle=col; ctx.fillText(txt,padL+W+6,y(v));};
-    ctx.fillStyle=fg; ctx.fillRect(padL+W,y(r.price)-8,54,16); ctx.fillStyle=css('--bg'); ctx.fillText(r.price.toFixed(2),padL+W+4,y(r.price));
-    const lbl=[[r.raw.sma20,'SMA20',accent],[r.raw.sma50,'SMA50',muted],[r.raw.h20,'20d hi',accent],[r.raw.l20,'20d lo',accent]].sort((a,b)=>a[0]-b[0]);
-    let lastY=-99; lbl.forEach(([v,t,c])=>{ let yy=y(v); if(Math.abs(yy-y(r.price))<10) return; if(Math.abs(yy-lastY)<11) return; lastY=yy; ctx.fillStyle=c; ctx.font=font; ctx.fillText(t,padL+W+6,yy); });
-
-    // ---- RSI panel ----
-    const R=setupCanvas($('cv-rsi')), c2=R.ctx, H2=R.h-padT-12, y2=v=>padT+(1-v/100)*H2;
-    c2.font=font; c2.textBaseline='middle';
-    c2.fillStyle=down; c2.globalAlpha=.08; c2.fillRect(padL,y2(100),W,y2(70)-y2(100)); c2.fillStyle=up; c2.fillRect(padL,y2(30),W,y2(0)-y2(30)); c2.globalAlpha=1;
-    [[70,down],[50,line],[30,up]].forEach(([v,col])=>{c2.strokeStyle=col; c2.setLineDash([3,3]); c2.beginPath(); c2.moveTo(padL,y2(v)); c2.lineTo(padL+W,y2(v)); c2.stroke(); c2.setLineDash([]); c2.fillStyle=muted; c2.fillText(v,padL+W+6,y2(v));});
-    c2.strokeStyle=fg; c2.lineWidth=1.5; c2.beginPath(); let st=false; rsiS.forEach((v,i)=>{ if(v==null) return; if(!st){c2.moveTo(x(i),y2(v));st=true;} else c2.lineTo(x(i),y2(v)); }); c2.stroke();
-    c2.fillStyle=fg; c2.font='bold '+font; c2.fillText('RSI '+r.rsi.toFixed(1),padL+4,padT+8);
-  }
-
-  function notesFor(r){
-    const v=r.raw, f1=x=>x.toFixed(1), f2=x=>x.toFixed(2), ok=t=>'<li class="ok">'+t+'</li>', bad=t=>'<li class="bad">'+t+'</li>', mid=t=>'<li class="mid">'+t+'</li>';
-    const out=[];
-    // Trend
-    if(r.price>v.sma20) out.push(ok('Price '+f2(r.price)+' is above SMA20 '+f2(v.sma20)+' (+'+f1(r.sma20)+'%).')); else out.push(bad('Price '+f2(r.price)+' is below SMA20 '+f2(v.sma20)+' ('+f1(r.sma20)+'%). Short-term trend is not up.'));
-    if(v.sma20>v.sma50) out.push(ok('SMA20 is above SMA50: the medium-term trend still points up.')); else out.push(bad('SMA20 is below SMA50: the averages are crossed down.'));
-    out.push(v.sma20>v.sma20prev?ok('SMA20 is rising vs five sessions ago.'):bad('SMA20 is falling vs five sessions ago.'));
-    // Range
-    out.push((r.rng>=85?ok:r.rng<=15?bad:mid)('Sits at '+f1(r.rng)+'% of its 20-day range ('+f2(v.l20)+' to '+f2(v.h20)+'). '+(r.rng>=85?'Near the high, where breakouts start.':r.rng<=15?'Near the low.':'Mid-range: neither breaking out nor washed out.')));
-    out.push(((v.h20-r.price)<=v.atr?ok:mid)('Needs +'+f1((v.h20/r.price-1)*100)+'% to reach the 20-day high; that is '+f1((v.h20-r.price)/v.atr)+' ATRs away'+((v.h20-r.price)<=v.atr?'.':' (breakout rule wants 1 or less).')));
-    // Extension
-    out.push(v.distSma20>2.5?bad('Extended: '+f1(v.distSma20)+' ATRs above SMA20. Chasing here is buying a stretched move.'):ok('Not extended: '+f1(v.distSma20)+' ATRs from SMA20.'));
-    // RS
-    if(r.rsQ!=null) out.push((r.rsQ>2?ok:r.rsQ<-2?bad:mid)('Relative strength vs QQQ: '+(r.rsQ>0?'+':'')+f1(r.rsQ)+' pts over 20 days. '+(r.rsQ>2?'Leading the index.':r.rsQ<-2?'Lagging the index.':'Moving with the index, not leading it.')));
-    if(r.rsS!=null) out.push((r.rsS>2?ok:r.rsS<-2?bad:mid)('Relative strength vs SMH: '+(r.rsS>0?'+':'')+f1(r.rsS)+' pts.'));
-    // RSI / momentum / volume / vol
-    out.push((r.rsi>=50&&r.rsi<=70?ok:r.rsi>75?bad:mid)('RSI '+f1(r.rsi)+': '+(r.rsi>75?'overbought zone.':r.rsi>=50&&r.rsi<=70?'healthy momentum zone (50–70).':r.rsi<35?'oversold zone. Can stay here in a decline.':'neutral. No momentum either way.')));
-    out.push((r.vr>=1.5?ok:r.vr<.8?bad:mid)('Volume '+f2(r.vr)+'× its 20-day average'+(r.vr>=1.5?': something is happening.':r.vr<.8?': quiet, no conviction behind the move.':': ordinary.')+(r.lastDate===new Date().toISOString().slice(0,10)?' Partial session, will rise by the close.':'')));
-    out.push(mid('ATR '+f2(v.atr)+' ('+f1(r.atr)+'%/day). A 1.5× ATR stop would sit about '+f2(1.5*v.atr)+' below entry.'));
-    // Verdict
-    let why;
-    if(r.setupCls==='b') why='Matches the breakout rules: uptrend, near the high, not extended.';
-    else if(r.setupCls==='p') why='Matches the pullback rules: trend intact, price back at SMA20 with neutral RSI.';
-    else if(r.setupCls==='x') why='Extended: the move has already happened. The rule set waits for a pullback instead of chasing.';
-    else if(r.setupCls==='dn') why='Downtrend: price below SMA20 below SMA50. The breakout strategy does not buy falling stocks.';
-    else { const miss=[]; if(!v.up) miss.push('not in an uptrend'); if(r.rng<85) miss.push('not near its 20-day high'); if(!(v.sma20>v.sma50&&r.price>v.sma50&&v.distSma20>=-1.5&&v.distSma20<=.5&&r.rsi>=40&&r.rsi<=60)) miss.push('not a clean pullback to SMA20 either'); why='No setup: '+miss.join(', ')+'. It is drifting. Nothing to act on under these rules, in either direction.'; }
-    return '<li class="verdict"><b>'+r.setup+'</b> ('+r.score+'/100, '+r.align.toLowerCase()+'). '+why+'</li>'+out.join('');
-  }
-
-  function showDetail(t){
-    const r=rows.find(x=>x.t===t); if(!r) return;
-    $('d-title').textContent=t; $('d-sub').textContent=r.setup+' · '+r.lastDate+(srcEl.className.includes('demo')?' · DEMO DATA, generated':'');
-    $('d-notes').innerHTML=notesFor(r); $('detail').hidden=false;
-    requestAnimationFrame(()=>drawChart(r));
-    $('detail').scrollIntoView({behavior:'smooth',block:'start'});
-  }
-  rowsEl.addEventListener('click',e=>{ const td=e.target.closest('td.t'); if(td) showDetail(td.textContent.trim()); });
-  $('d-close').addEventListener('click',()=>{$('detail').hidden=true;});
-  window.addEventListener('resize',()=>{ if(!$('detail').hidden){ const r=rows.find(x=>x.t===$('d-title').textContent); if(r) drawChart(r);} });
-
-  // ---------- demo data: seeded random walk, clearly labelled ----------
+  // ---------- demo data ----------
   function demoBars(t){
     let seed=0; for(const ch of t) seed=(seed*31+ch.charCodeAt(0))>>>0;
     const rnd=()=>{seed=(seed*1664525+1013904223)>>>0; return seed/4294967296;};
@@ -413,14 +326,13 @@ footer a{color:var(--accent)}
     for(let i=0;i<130;i++){
       day.setDate(day.getDate()+1); if(day.getDay()===0||day.getDay()===6){i--;continue;}
       const r=(rnd()-.5+(rnd()-.5))*vol*2+drift; const o=c; c=Math.max(1,c*(1+r));
-      bars.push({d:day.toISOString().slice(0,10),o,c,h:Math.max(o,c)*(1+rnd()*vol*.6),l:Math.min(o,c)*(1-rnd()*vol*.6),
-        v:(2e6+rnd()*4e7)*(1+(i===129&&rnd()>.75?1.2:0))});
+      bars.push({d:day.toISOString().slice(0,10),o,c,h:Math.max(o,c)*(1+rnd()*vol*.6),l:Math.min(o,c)*(1-rnd()*vol*.6),v:(2e6+rnd()*4e7)*(1+(i===129&&rnd()>.75?1.2:0))});
     }
     return bars;
   }
   function demoEarnings(t,lastDate){ let s=0; for(const ch of t) s+=ch.charCodeAt(0); const d=new Date(lastDate); d.setDate(d.getDate()+(s%40)-5); return d.toISOString().slice(0,10); }
 
-  // ---------- live data: Twelve Data, batched to respect the free tier ----------
+  // ---------- live data: Twelve Data ----------
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   async function td(path,params,key){
     const r=await fetch('https://api.twelvedata.com/'+path+'?'+params+'&apikey='+encodeURIComponent(key));
@@ -458,64 +370,169 @@ footer a{color:var(--accent)}
 
   // ---------- render ----------
   const f=(x,d=2)=>x==null?'–':x.toFixed(d);
-  const pc=x=>'<td class="num '+(x>0?'up':x<0?'down':'')+'">'+(x==null?'–':(x>0?'+':'')+f(x)+'%')+'</td>';
+  const pc=(x,extra='')=>'<td class="num '+extra+' '+(x>0?'up':x<0?'down':'')+'">'+(x==null?'–':(x>0?'+':'')+f(x)+'%')+'</td>';
   function spark(a){
     const w=92,h=26,mn=Math.min(...a),mx=Math.max(...a),sp=mx-mn||1;
     const pts=a.map((v,i)=>(i/(a.length-1)*(w-2)+1).toFixed(1)+','+((h-2)-(v-mn)/sp*(h-4)).toFixed(1)).join(' ');
     return '<svg class="spark" viewBox="0 0 '+w+' '+h+'"><polyline points="'+pts+'" fill="none" stroke="'+(a[a.length-1]>=a[0]?'var(--up)':'var(--down)')+'" stroke-width="1.5"/></svg>';
   }
+  const flagCls={'Extended':'warn','Heavy selling':'risk','Earnings':'soon','Incomplete':''};
+  const flagsCell=r=>'<td class="l">'+(r.flags.map(x=>'<span class="pill '+flagCls[x]+'">'+x+'</span>').join('')||'<span class="sub">–</span>')+'</td>';
   const earnCell=r=>r.edays==null?'<td class="num">–</td>':'<td title="'+r.earnDate+'"><span class="pill'+(r.edays>=0&&r.edays<=7?' soon':'')+'">'+(r.edays<0?'past':r.edays+'d')+'</span></td>';
+  const meter=r=>r.score==null?'<td class="l" title="'+r.breakdown+'"><span class="sub">incomplete</span></td>':'<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
+  const rsCell=r=>'<td class="num '+(r.rsB>0?'up':r.rsB<0?'down':'')+'" title="vs '+r.bname+'">'+(r.rsB==null?'–':(r.rsB>0?'+':'')+f(r.rsB,1)+' <span class="sub">'+r.bname+'</span>')+'</td>';
   function render(){
     const sorted=rows.slice().sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;});
-    const meter=r=>'<td class="setup" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
-    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="setup"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+meter(r)+earnCell(r)+
-      '<td>'+spark(r.spark)+'</td><td class="num">'+f(r.price)+'</td>'+pc(r.d1)+pc(r.d5)+pc(r.d20)+pc(r.rsQ)+pc(r.rsS)+
-      '<td class="num">'+f(r.atr)+'</td><td><span class="pill '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
-      pc(r.sma20)+pc(r.sma50)+'<td class="num">'+f(r.rng,0)+'</td><td class="num">'+f(r.dvol,1)+'</td><td class="num'+(r.vr>1.5?' vol':'')+'">'+f(r.vr)+'×</td></tr>').join('');
-    document.querySelectorAll('th').forEach(th=>th.classList.toggle('on',th.dataset.k===sortKey||(sortKey==='setupRank'&&th.dataset.k==='setup')));
+    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="l"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+flagsCell(r)+meter(r)+rsCell(r)+
+      '<td class="num">'+f(r.atr)+'</td>'+earnCell(r)+'<td>'+spark(r.spark)+'</td><td class="num">'+f(r.price)+'</td>'+
+      pc(r.d1,'x')+pc(r.d5,'x')+pc(r.d20,'x')+pc(r.rsQ,'x')+'<td class="x"><span class="pill '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
+      pc(r.sma20,'x')+pc(r.sma50,'x')+'<td class="num x">'+f(r.rng,0)+'</td><td class="num x">'+f(r.dvol,1)+'</td><td class="num x'+(r.vr>1.5?' vol':'')+'">'+f(r.vr)+'×</td></tr>').join('');
+    document.querySelectorAll('th').forEach(th=>th.classList.toggle('on',th.dataset.k===sortKey||(sortKey==='setupRank'&&th.dataset.k==='setup')||(sortKey==='flagsKey'&&th.dataset.k==='flags')));
     const names=p=>rows.filter(p).map(r=>r.t).join(', ')||'none';
-    $('c-b').textContent=names(r=>r.setupCls==='b'); $('c-p').textContent=names(r=>r.setupCls==='p');
-    $('c-x').textContent=names(r=>r.setupCls==='x'); $('c-e').textContent=names(r=>r.edays!=null&&r.edays>=0&&r.edays<=7);
-    $('c-s').textContent=rows.slice().sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score).join(', ')||'–';
+    const bc=rows.filter(r=>r.setupCls==='bc').map(r=>r.t), bw=rows.filter(r=>r.setupCls==='bw').map(r=>r.t);
+    $('c-b').textContent=(bc.length?bc.join(', '):'none')+' / '+(bw.length?bw.join(', '):'none');
+    $('c-p').textContent=names(r=>r.setupCls==='p');
+    $('c-s').textContent=rows.filter(r=>r.score!=null).sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score).join(', ')||'–';
+    $('c-w').textContent=rows.filter(r=>r.flags.includes('Extended')||r.flags.includes('Heavy selling')).map(r=>r.t+' ('+r.flags.filter(x=>x!=='Earnings'&&x!=='Incomplete').join(', ').toLowerCase()+')').join(', ')||'none';
+    $('c-e').textContent=names(r=>r.flags.includes('Earnings'));
   }
   document.querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{
-    let k=th.dataset.k; if(k==='spark') return; if(k==='setup') k='setupRank';
-    if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==='t'||k==='setupRank'||k==='edays')?1:-1;} render();
+    let k=th.dataset.k; if(k==='spark') return; if(k==='setup') k='setupRank'; if(k==='flags') k='flagsKey';
+    if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=(k==='t'||k==='setupRank'||k==='edays'||k==='flagsKey')?1:-1;} render();
   }));
+  $('toggle').addEventListener('click',()=>{ const full=$('tbl').classList.toggle('full'); $('toggle').textContent=full?'Show compact view':'Show full numbers'; try{localStorage.setItem('sb_full',full?'1':'0');}catch(e){} });
+  try{ if(localStorage.getItem('sb_full')==='1'){ $('tbl').classList.add('full'); $('toggle').textContent='Show compact view'; } }catch(e){}
 
+  // ---------- chart panel ----------
+  function series(bars){
+    const sma=(n)=>bars.map((_,i)=>i<n-1?null:mean(bars.slice(i-n+1,i+1).map(b=>b.c)));
+    const rsi=[]; let g=0,l=0;
+    for(let i=0;i<bars.length;i++){
+      if(i===0){rsi.push(null);continue;} const d=bars[i].c-bars[i-1].c;
+      if(i<=14){g+=Math.max(d,0);l+=Math.max(-d,0); rsi.push(i===14?(l===0?100:100-100/(1+(g/14)/(l/14))):null); if(i===14){g/=14;l/=14;} continue;}
+      g=(g*13+Math.max(d,0))/14; l=(l*13+Math.max(-d,0))/14; rsi.push(l===0?100:100-100/(1+g/l));
+    }
+    return {sma20:sma(20),sma50:sma(50),rsi};
+  }
+  function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function setupCanvas(cv){
+    const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+    cv.width=w*dpr; cv.height=h*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    return {ctx,w,h};
+  }
+  function drawChart(r){
+    const bars=r.bars.slice(-120), s=series(r.bars), off=r.bars.length-bars.length;
+    const sma20=s.sma20.slice(off), sma50=s.sma50.slice(off), rsiS=s.rsi.slice(off);
+    const fg=css('--fg'), muted=css('--muted'), line=css('--line'), accent=css('--accent'), up=css('--up'), down=css('--down');
+    const font='11px '+css('--mono');
+    const P=setupCanvas($('cv-price')), ctx=P.ctx, padL=8, padR=60, padT=10, padB=22, W=P.w-padL-padR, H=P.h-padT-padB;
+    const all=bars.flatMap(b=>[b.h,b.l]).concat(sma50.filter(x=>x!=null)); const mn=Math.min(...all)*.985, mx=Math.max(...all)*1.015;
+    const x=i=>padL+i/(bars.length-1)*W, y=v=>padT+(1-(v-mn)/(mx-mn))*H;
+    ctx.font=font; ctx.textBaseline='middle'; ctx.strokeStyle=line; ctx.fillStyle=muted; ctx.lineWidth=1;
+    for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4, yy=y(v); ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(padL+W,yy); ctx.stroke(); ctx.fillText(v.toFixed(v>100?0:2),padL+W+6,yy);}
+    ctx.textBaseline='top';
+    bars.forEach((b,i)=>{ if(i>0&&b.d.slice(0,7)!==bars[i-1].d.slice(0,7)){ ctx.fillText(new Date(b.d+'T12:00').toLocaleString('en',{month:'short'}),x(i)-10,padT+H+6); ctx.strokeStyle=line; ctx.beginPath(); ctx.moveTo(x(i),padT); ctx.lineTo(x(i),padT+H); ctx.stroke(); }});
+    const i0=bars.length-21, i1=bars.length-2;
+    ctx.fillStyle=accent; ctx.globalAlpha=.08; ctx.fillRect(x(i0),y(r.raw.ph),x(i1)-x(i0),y(r.raw.pl)-y(r.raw.ph)); ctx.globalAlpha=1;
+    ctx.setLineDash([3,3]); ctx.strokeStyle=accent; ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.ph)); ctx.lineTo(x(bars.length-1)+4,y(r.raw.ph)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x(i0),y(r.raw.pl)); ctx.lineTo(x(bars.length-1)+4,y(r.raw.pl)); ctx.stroke(); ctx.setLineDash([]);
+    const plot=(arr,col,wid)=>{ctx.strokeStyle=col; ctx.lineWidth=wid; ctx.beginPath(); let st=false; arr.forEach((v,i)=>{ if(v==null) return; if(!st){ctx.moveTo(x(i),y(v));st=true;} else ctx.lineTo(x(i),y(v)); }); ctx.stroke();};
+    plot(sma50,muted,1.5); plot(sma20,accent,1.5);
+    bars.forEach((b,i)=>{ const col=b.c>=b.o?up:down; ctx.strokeStyle=col; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x(i),y(b.h)); ctx.lineTo(x(i),y(b.l)); ctx.stroke(); ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x(i),y(b.c)); ctx.lineTo(x(i)+3,y(b.c)); ctx.stroke(); });
+    ctx.textBaseline='middle'; ctx.font='bold '+font;
+    ctx.fillStyle=fg; ctx.fillRect(padL+W,y(r.price)-8,56,16); ctx.fillStyle=css('--bg'); ctx.fillText(r.price.toFixed(2),padL+W+4,y(r.price));
+    const lbl=[[r.raw.sma20,'SMA20',accent],[r.raw.sma50,'SMA50',muted],[r.raw.ph,'prior hi',accent],[r.raw.pl,'prior lo',accent]].sort((a,b)=>a[0]-b[0]);
+    let lastY=-99; lbl.forEach(([v,t,c])=>{ let yy=y(v); if(Math.abs(yy-y(r.price))<10) return; if(Math.abs(yy-lastY)<11) return; lastY=yy; ctx.fillStyle=c; ctx.font=font; ctx.fillText(t,padL+W+6,yy); });
+    const R=setupCanvas($('cv-rsi')), c2=R.ctx, H2=R.h-padT-12, y2=v=>padT+(1-v/100)*H2;
+    c2.font=font; c2.textBaseline='middle';
+    c2.fillStyle=down; c2.globalAlpha=.08; c2.fillRect(padL,y2(100),W,y2(70)-y2(100)); c2.fillStyle=up; c2.fillRect(padL,y2(30),W,y2(0)-y2(30)); c2.globalAlpha=1;
+    [[70,down],[50,line],[30,up]].forEach(([v,col])=>{c2.strokeStyle=col; c2.setLineDash([3,3]); c2.beginPath(); c2.moveTo(padL,y2(v)); c2.lineTo(padL+W,y2(v)); c2.stroke(); c2.setLineDash([]); c2.fillStyle=muted; c2.fillText(v,padL+W+6,y2(v));});
+    c2.strokeStyle=fg; c2.lineWidth=1.5; c2.beginPath(); let st=false; rsiS.forEach((v,i)=>{ if(v==null) return; if(!st){c2.moveTo(x(i),y2(v));st=true;} else c2.lineTo(x(i),y2(v)); }); c2.stroke();
+    c2.fillStyle=fg; c2.font='bold '+font; c2.fillText('RSI '+r.rsi.toFixed(1),padL+4,padT+8);
+  }
+
+  // One note per score bucket, plus flags and the verdict. Fewer, denser lines.
+  function notesFor(r){
+    const v=r.raw, f1=x=>x.toFixed(1), f2=x=>x.toFixed(2), li=(cls,t,n)=>'<li class="'+cls+'">'+t+(n?'<span class="n">'+n+'</span>':'')+'</li>';
+    const out=[];
+    // verdict
+    let why;
+    if(r.setupCls==='bc') why='Closed above the prior 20-day high in an uptrend. The breakout has happened; the question now is follow-through and where your stop goes (below '+f2(v.ph)+').';
+    else if(r.setupCls==='bw') why='In an uptrend and within 1 ATR of the prior 20-day high ('+f2(v.ph)+'). Nothing has triggered yet. A close above that level would confirm.';
+    else if(r.setupCls==='p') why='Healthy uptrend (SMA50 rising) that has dipped back to SMA20 with neutral RSI. The breakout score does not judge pullbacks; it is context only.';
+    else if(r.setupCls==='dn') why='Price below SMA20 below SMA50. The breakout strategy does not buy falling stocks.';
+    else { const miss=[]; if(!v.up) miss.push('not in an uptrend'); if(r.rng<85) miss.push('not near its prior 20-day high'); miss.push('not a clean pullback either'); why='No setup: '+miss.join(', ')+'. Nothing to act on under these rules, in either direction.'; }
+    out.push('<li class="verdict"><b>'+r.setup+'</b>'+(r.score==null?' (score withheld, benchmark missing)':' ('+r.score+'/100, '+r.align.toLowerCase()+')')+'. '+why+'</li>');
+    if(r.flags.includes('Extended')) out.push(li('bad','Extended: '+f1(v.distSma20)+' ATRs above SMA20'+(r.rsi>75?', RSI '+f1(r.rsi):'')+'. Chasing here is buying a stretched move.'));
+    if(r.flags.includes('Heavy selling')) out.push(li('bad','Heavy selling: volume '+f2(r.vr)+'× average with a close in the bottom '+f1(v.closeLoc*100)+'% of the day\'s range.'));
+    if(r.flags.includes('Earnings')) out.push(li('bad','Earnings in '+r.edays+' days ('+r.earnDate+'). Setups into earnings are coin flips.'));
+    // buckets
+    const sc=v.sc;
+    out.push(li(sc.trend>=21?'ok':sc.trend>=13?'mid':'bad','Trend '+sc.trend.toFixed(0)+'/25: '+(r.price>v.sma20?'above':'below')+' SMA20, SMA20 '+(v.sma20>v.sma50?'above':'below')+' SMA50, SMA20 '+(v.sma20>v.sma20prev?'rising':'falling')+', SMA50 '+(v.sma50>v.sma50prev?'rising':'falling')+'.',
+      'price '+f2(r.price)+' · SMA20 '+f2(v.sma20)+' ('+(r.sma20>0?'+':'')+f1(r.sma20)+'%) · SMA50 '+f2(v.sma50)+' ('+(r.sma50>0?'+':'')+f1(r.sma50)+'%)'));
+    if(sc.rel==null) out.push(li('mid','Relative strength: benchmark '+r.bname+' not loaded, score withheld.'));
+    else out.push(li(sc.rel>=18?'ok':sc.rel>=10?'mid':'bad','Relative strength '+sc.rel.toFixed(0)+'/25: '+(r.rsB>0?'leading':'lagging')+' '+r.bname+' by '+f1(Math.abs(r.rsB))+' pts over 20 days ('+f1(v.rsNorm)+' ATR). '+r.bname+' itself is '+(v.B.aboveSma50?'above':'below')+' its SMA50, which is '+(v.B.sma50Rising?'rising':'falling')+'.'));
+    out.push(li(sc.setup>=14?'ok':sc.setup>=7?'mid':'bad','Setup '+sc.setup.toFixed(0)+'/20: at '+f1(r.rng)+'% of the prior 20-day range ('+f2(v.pl)+' to '+f2(v.ph)+'), '+(r.price>v.ph?'already above the prior high':f1((v.ph-r.price)/v.atr)+' ATRs below it')+'.'));
+    out.push(li(sc.volume>=9?'ok':sc.volume>=4?'mid':'bad','Volume '+sc.volume.toFixed(0)+'/15: '+f2(r.vr)+'× its 20-day average, close in the '+(v.closeLoc>=.5?'upper':'lower')+' half of the day\'s range'+(v.volConfirm?'.':'; no bullish volume credit.')+(r.lastDate===new Date().toISOString().slice(0,10)?' Partial session.':'')));
+    out.push(li(sc.momentum>=10?'ok':sc.momentum>=5?'mid':'bad','Momentum '+sc.momentum.toFixed(0)+'/15: RSI '+f1(r.rsi)+', last 5 days '+(r.d5>0?'+':'')+f1(r.d5)+'% vs '+(v.prev5>0?'+':'')+f1(v.prev5)+'% the 5 before.'));
+    out.push(li('mid','ATR '+f2(v.atr)+' ('+f1(r.atr)+'% per day). Use it to check your stop distance is reasonable; the stop itself comes from the chart.'));
+    return out.join('');
+  }
+  function showDetail(t){
+    const r=rows.find(x=>x.t===t); if(!r) return;
+    $('d-title').textContent=t; $('d-sub').textContent=r.setup+(r.flags.length?' · '+r.flags.join(', '):'')+' · '+r.lastDate+(srcEl.className.includes('demo')?' · DEMO DATA, generated':'');
+    $('d-notes').innerHTML=notesFor(r); $('detail').hidden=false;
+    requestAnimationFrame(()=>drawChart(r)); $('detail').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  rowsEl.addEventListener('click',e=>{ const td=e.target.closest('td.t'); if(td) showDetail(td.textContent.trim()); });
+  $('d-close').addEventListener('click',()=>{$('detail').hidden=true;});
+  window.addEventListener('resize',()=>{ if(!$('detail').hidden){ const r=rows.find(x=>x.t===$('d-title').textContent); if(r) drawChart(r);} });
+
+  // ---------- status, session, snapshots ----------
   function setStatus(src,bars,session,bench){
     srcEl.textContent=src; srcEl.className='src '+(src.startsWith('LIVE')?'live':'demo');
     $('st-bars').textContent='bars through: '+bars; $('st-session').textContent='latest bar: '+session;
     $('st-bench').textContent='benchmarks: '+bench; $('st-time').textContent='updated '+new Date().toLocaleString();
   }
-  function sessionLabel(lastDate){
-    // Daily bars finalize after 4pm ET. If the latest bar is today and US market is open, it is still changing.
-    const now=new Date(), et=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+  function isIntraday(lastDate){
+    const et=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
     const today=et.toISOString().slice(0,10), mins=et.getHours()*60+et.getMinutes();
-    if(lastDate===today&&mins>=570&&mins<960) return 'INTRADAY, still changing (volume ratio understated)';
-    return 'completed session';
+    return lastDate===today&&mins>=570&&mins<960;
   }
+  const sessionLabel=d=>isIntraday(d)?'INTRADAY, still changing (volume understated)':'completed session';
   function snapshot(source){
     try{
       const key='sb_history', date=rows[0]?rows[0].lastDate:'', h=JSON.parse(localStorage.getItem(key)||'[]').filter(x=>!(x.date===date&&x.src===source));
-      rows.forEach(r=>h.push({date,src:source,t:r.t,setup:r.setup,score:r.score,price:+r.price.toFixed(2),rsi:+r.rsi.toFixed(1),rsQ:r.rsQ==null?'':+r.rsQ.toFixed(2),atr:+r.atr.toFixed(2),rng:+r.rng.toFixed(0),vr:+r.vr.toFixed(2)}));
-      localStorage.setItem(key,JSON.stringify(h.slice(-3000)));
+      rows.forEach(r=>h.push({date,src:source,rules:RULES,t:r.t,setup:r.setup,flags:r.flags.join('|'),score:r.score==null?'':r.score,price:+r.price.toFixed(2),rsi:+r.rsi.toFixed(1),rsB:r.rsB==null?'':+r.rsB.toFixed(2),bench:r.bname,atr:+r.atr.toFixed(2),rng:+r.rng.toFixed(0),vr:+r.vr.toFixed(2)}));
+      localStorage.setItem(key,JSON.stringify(h.slice(-4000)));
     }catch(e){}
   }
   $('hist').addEventListener('click',()=>{
     let h=[]; try{h=JSON.parse(localStorage.getItem('sb_history')||'[]');}catch(e){}
-    const cols=['date','src','t','setup','score','price','rsi','rsQ','atr','rng','vr'];
-    const csv=[cols.join(',')].concat(h.map(x=>cols.map(c=>x[c]).join(','))).join('\n');
+    const cols=['date','src','rules','t','setup','flags','score','price','rsi','rsB','bench','atr','rng','vr'];
+    const csv=[cols.join(',')].concat(h.map(x=>cols.map(c=>x[c]==null?'':x[c]).join(','))).join('\n');
     navigator.clipboard.writeText(csv).then(()=>msgEl.textContent='Copied '+h.length+' snapshot rows as CSV.',()=>{msgEl.textContent='Clipboard blocked here. Open the page in a desktop browser to copy.';});
   });
 
+  // ---------- load paths ----------
   function tickers(){ return $('tickers').value.toUpperCase().split(/[\s,]+/).filter(Boolean); }
+  function benchesFrom(all){ const b={}; BENCH.forEach(k=>{ const i=benchInfo(all[k]); if(i) b[k]=i; }); return b; }
   function loadDemo(){
-    const bb={}; BENCH.forEach(b=>{const bars=demoBars(b); bb[b]=pct(bars[bars.length-1].c,bars[bars.length-21].c);});
-    rows=tickers().map(t=>{const bars=demoBars(t); return analyze(t,bars,bb,demoEarnings(t,bars[bars.length-1].d));});
+    const all={}; BENCH.forEach(b=>all[b]=demoBars(b)); const benches=benchesFrom(all);
+    rows=tickers().filter(t=>!BENCH.includes(t)).map(t=>{const bars=demoBars(t); return analyze(t,bars,benches,demoEarnings(t,bars[bars.length-1].d));});
     setStatus('DEMO DATA','generated','n/a (generated)','QQQ, SMH (generated)');
     msgEl.textContent='Demo prices and earnings dates are generated, not real. Add a Twelve Data key and run for live quotes.';
     render(); snapshot('demo');
+  }
+  function showLive(all,earn,got,fetchedAt,missed,earnFetched,cached){
+    const benches=benchesFrom(all);
+    rows=got.map(t=>analyze(t,all[t],benches,earn[t]));
+    const lastDate=rows[0].lastDate, when=new Date(fetchedAt).toLocaleString();
+    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,sessionLabel(lastDate),Object.keys(benches).join(', ')||'unavailable');
+    msgEl.textContent=(cached?'Showing your last live run from '+when+'. Click Run screen to refresh. ':'Loaded '+got.length+' symbols. ')
+      +(missed&&missed.length?'Skipped (no data): '+missed.join(', ')+'. ':'')+(earnFetched?'':'Earnings dates not fetched (tick the box to include them).');
+    render();
+    return lastDate;
   }
   $('demo').addEventListener('click',loadDemo);
   $('run').addEventListener('click',async()=>{
@@ -525,28 +542,18 @@ footer a{color:var(--accent)}
     try{
       const want=tickers().filter(t=>!BENCH.includes(t));
       const {all,earn}=await runLive(want,key,$('earn').checked);
-      const bb={}; BENCH.forEach(b=>{ if(all[b]&&all[b].length>=21) bb[b]=pct(all[b][all[b].length-1].c,all[b][all[b].length-21].c); });
-      const got=want.filter(s=>all[s]&&all[s].length>=60);
+      const got=want.filter(s=>all[s]&&all[s].length>=61);
       if(!got.length) throw new Error('No usable data came back. Check the key and symbols.');
       const fetchedAt=new Date().toISOString();
-      showLive(all,earn,bb,got,fetchedAt,want.filter(t=>!got.includes(t)),$('earn').checked);
-      try{ localStorage.setItem('sb_live',JSON.stringify({all,earn,bb,got,fetchedAt})); }catch(e){}
-      snapshot('live');
+      const lastDate=showLive(all,earn,got,fetchedAt,want.filter(t=>!got.includes(t)),$('earn').checked);
+      try{ localStorage.setItem('sb_live',JSON.stringify({all,earn,got,fetchedAt,rules:RULES})); }catch(e){}
+      snapshot(isIntraday(lastDate)?'live-intraday':'live');
     }catch(e){ msgEl.textContent='Could not load live data: '+e.message; }
     $('run').disabled=false;
   });
-  // Render a live result set (fresh or restored from the browser cache)
-  function showLive(all,earn,bb,got,fetchedAt,missed,earnFetched,cached){
-    rows=got.map(t=>analyze(t,all[t],bb,earn[t]));
-    const lastDate=rows[0].lastDate, when=new Date(fetchedAt).toLocaleString();
-    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,sessionLabel(lastDate),Object.keys(bb).join(', ')||'unavailable');
-    msgEl.textContent=(cached?'Showing your last live run from '+when+'. Click Run screen to refresh. ':'Loaded '+got.length+' symbols. ')
-      +(missed&&missed.length?'Skipped (no data): '+missed.join(', ')+'. ':'')+(earnFetched?'':'Earnings dates not fetched (tick the box to include them).');
-    render();
-  }
   try{ const k=localStorage.getItem('sb_key'); if(k) $('apikey').value=k; }catch(e){}
   let restored=false;
-  try{ const c=JSON.parse(localStorage.getItem('sb_live')||'null'); if(c&&c.got&&c.got.length){ showLive(c.all,c.earn||{},c.bb||{},c.got,c.fetchedAt,[],Object.keys(c.earn||{}).length>0,true); restored=true; } }catch(e){}
+  try{ const c=JSON.parse(localStorage.getItem('sb_live')||'null'); if(c&&c.got&&c.got.length&&c.all&&c.all.QQQ){ showLive(c.all,c.earn||{},c.got,c.fetchedAt,[],Object.keys(c.earn||{}).length>0,true); restored=true; } }catch(e){}
   if(!restored) loadDemo();
 })();
 </script>
