@@ -5,3 +5,4 @@ venv/
 screener_results.csv
 screener_results.xlsx
 history.csv
+last_run.log

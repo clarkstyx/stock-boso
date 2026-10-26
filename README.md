@@ -15,6 +15,13 @@ pip install -r requirements.txt
 python stock_screener.py
 ```
 
+### Run it automatically (Windows)
+
+Clone the repo, then double-click `setup_windows_task.bat` once. It installs the packages,
+does a test run, and creates a scheduled task that runs the screener every weekday at
+2:35 PM Regina time (4:35 PM ET, after the close). Results land in the same folder;
+`history.csv` grows by one snapshot per day.
+
 ## Quick start (web)
 
 Open `index.html` in a browser. Paste a Twelve Data API key (free at twelvedata.com) and
