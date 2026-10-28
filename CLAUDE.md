@@ -49,8 +49,10 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 - First production run Oct 26 after the close: 20 tickers, all `final`, 20 snapshot rows, all scores
   reproducible from stored inputs (audited). TSLA was the only Breakout confirmed (83). Both QQQ and
   SMH were below falling SMA50s, so the RS bucket capped at 15/25 for everyone.
-- Scheduled task created on Clark's laptop (`Documents\stock-boso`). **Unverified**: whether the
-  Oct 27 15:35 run fired. Check `last_run.log` exists and `snapshots.csv` has 41 lines.
+- Scheduled task "Stock Boso daily screen" on Clark's laptop runs from this repo folder
+  (`D:\Projects\valencia-ai\stock-boso`), writing `last_run.log` and `snapshots.csv` here.
+  **Verified** Oct 27: the 15:35 run fired (result 0), 20 new `final` rows, 41 lines total, no
+  duplicate keys. TSLA still the only Breakout confirmed (80).
 - **Open check**: NVDA RSI(14)/ATR(14) vs TradingView daily, to confirm Yahoo data matches. Within
   ~0.3 RSI / ~$0.10 ATR = fine. Not yet done.
 - Yahoo's earnings calendar sometimes blanks right after a report (TSLA, META on Oct 26). A missing
