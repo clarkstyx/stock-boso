@@ -1,5 +1,5 @@
 """
-Tests for replay.py, the historical replay of rules v2.1.
+Tests for replay.py, the historical replay of the Stock Boso rules.
 
     pytest -q
 
@@ -19,7 +19,7 @@ import boso
 import replay
 
 FX = json.loads((Path(__file__).parent / "fixtures" / "bars.json").read_text())
-ANALYSIS_FIELDS = ["setup", "flags", "score", "c_trend", "c_rel", "c_setup", "c_volume", "c_momentum", "rs", "mom5"]
+ANALYSIS_FIELDS = ["setup", "flags", "rs", "mom5", "rsi", "atr_pct"]
 
 
 def df_of(sym: str) -> pd.DataFrame:
@@ -77,8 +77,9 @@ def test_replay_row_matches_direct_analyze():
     direct = boso.analyze("UPUP", window, bs, None, None)
     r = rows[t.date().isoformat()]
     assert r["setup"] == direct["Setup"]
-    assert r["score"] == direct["Breakout score"]
     assert r["rs"] == direct["RS vs bench"]
+    assert r["rsi"] == direct["RSI"]
+    assert "score" not in r
 
 
 # ---------------------------------------------------------------------------
@@ -143,28 +144,27 @@ def test_mark_episodes():
 
 
 # ---------------------------------------------------------------------------
-# 6. Rankers pick from the SAME eligible universe; ties broken by ticker
+# 6. Rankers pick from the SAME eligible universe (RS available); ties broken by ticker
 # ---------------------------------------------------------------------------
 def test_top_n_same_universe_and_ties():
     day = [
-        {"ticker": "A", "score": 80, "rs": 1.0, "mom5": 9.0},
-        {"ticker": "B", "score": 70, "rs": 5.0, "mom5": 1.0},
-        {"ticker": "C", "score": 70, "rs": 4.0, "mom5": 2.0},
-        {"ticker": "D", "score": 10, "rs": 3.0, "mom5": 3.0},
-        {"ticker": "E", "score": None, "rs": 99.0, "mom5": 99.0},   # incomplete: not eligible for anyone
+        {"ticker": "A", "rs": 1.0, "mom5": 9.0},
+        {"ticker": "B", "rs": 5.0, "mom5": 1.0},
+        {"ticker": "C", "rs": 4.0, "mom5": 2.0},
+        {"ticker": "D", "rs": 3.0, "mom5": 3.0},
+        {"ticker": "E", "rs": None, "mom5": 99.0},   # incomplete: not eligible for anyone
     ]
-    assert [r["ticker"] for r in replay.top_n(day, "score")] == ["A", "B", "C"]
     assert [r["ticker"] for r in replay.top_n(day, "rs")] == ["B", "C", "D"]
     assert [r["ticker"] for r in replay.top_n(day, "mom5")] == ["A", "D", "C"]
 
 
 def test_daily_portfolios_skip_thin_days():
-    rows = [{"date": "2026-01-02", "ticker": t, "score": s, "rs": s, "mom5": s, "rel_net_5": s / 10}
+    rows = [{"date": "2026-01-02", "ticker": t, "rs": s, "mom5": s, "rel_net_5": s / 10}
             for t, s in [("A", 30), ("B", 20), ("C", 10), ("D", 0)]]
-    rows += [{"date": "2026-01-05", "ticker": "A", "score": 50, "rs": 1, "mom5": 1, "rel_net_5": 1.0}]
+    rows += [{"date": "2026-01-05", "ticker": "A", "rs": 1, "mom5": 1, "rel_net_5": 1.0}]
     p = replay.daily_portfolios(rows, horizon=5)
     assert list(p.index) == ["2026-01-02"]
-    assert p.loc["2026-01-02", "score"] == pytest.approx(2.0)      # mean of 3, 2, 1
+    assert p.loc["2026-01-02", "rs"] == pytest.approx(2.0)         # mean of 3, 2, 1
     assert p.loc["2026-01-02", "all"] == pytest.approx(1.5)        # all eligible
 
 

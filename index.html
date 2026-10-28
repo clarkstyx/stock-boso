@@ -70,11 +70,6 @@ td.num{font-family:var(--mono);font-size:13px}
 .pill.warn{background:var(--warn);color:#fff} .pill.risk{background:var(--down);color:#fff} .pill.soon{background:var(--down);color:#fff}
 .vol{font-weight:600;color:var(--warn)}
 svg.spark{width:92px;height:26px;display:block}
-.meter{display:flex;align-items:center;gap:8px;cursor:help}
-.meter .bar{width:72px;height:8px;border-radius:4px;background:var(--chip);overflow:hidden;flex:none}
-.meter .bar i{display:block;height:100%;background:var(--accent)}
-.meter .num{font-family:var(--mono);font-size:13px;width:2ch;text-align:right}
-.meter .al{font-size:11px;color:var(--muted)}
 .detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:10px}
 .dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .dtitle{font-family:var(--mono);font-size:18px;font-weight:600}
@@ -101,13 +96,13 @@ footer a{color:var(--accent)}
 <div class="wrap">
   <header>
     <h1>Stock Boso</h1>
-    <span class="sub">Swing screener. Ranks setups and shows the evidence; the decision stays with you.</span>
-    <span class="ver">rules v2.1 · engine v2.1.1</span>
+    <span class="sub">Swing screener. Labels setups, flags risks and shows the evidence; the decision stays with you.</span>
+    <span class="ver">rules v3.0 · engine v2.1.1</span>
   </header>
 
   <section class="notice">
     <div class="ntitle">What this is</div>
-    <p>An experimental stock screener built by <b>Valencia AI</b> for testing and learning. It matches daily price data against a written set of rules and shows you the result. It has not been backtested, and nothing here is a prediction.</p>
+    <p>An experimental stock screener built by <b>Valencia AI</b> for testing and learning. It matches daily price data against a written set of rules and shows you the result. A replay over 2022–2026 found that its earlier 0–100 score did no better than plain relative strength, and that none of the rules beat the index after costs; the score was removed. Nothing here is a prediction.</p>
     <p><b>Not financial advice.</b> Valencia AI is not a licensed advisor, broker or dealer. Nothing on this page is a recommendation to buy, sell or hold anything. Any trade you make is your own decision and your own risk. Do your own research and consider talking to a licensed professional.</p>
     <p><b>Data.</b> The page opens with generated demo prices. For real quotes, sign up for a free API key at <a href="https://twelvedata.com" target="_blank" rel="noopener">twelvedata.com</a>, paste it below and click Run screen. Your key is stored only in this browser and requests go directly from you to Twelve Data. Quotes are end-of-day daily bars, delayed, for personal use only. Earnings dates may be estimates; confirm on the company's investor-relations site.</p>
     <p>Valencia AI accepts no liability for losses arising from use of this tool. By using it you agree to these terms.</p>
@@ -128,7 +123,7 @@ footer a{color:var(--accent)}
         <ol start="5">
           <li>Click <b>Run screen</b> to refresh. Best after 4pm Eastern, when the day's bar is final.</li>
           <li>Read the cards first. Breakout: closed above its prior 20-day high today (confirmed) or sitting just under it (watch). Pullback watch: healthy uptrend that dipped back to its average. Warnings: extended or heavy selling, read before anything else. Earnings within 7 days: avoid, it's a coin flip.</li>
-          <li>Click a ticker name to open its chart and notes. The top note gives the verdict and why.</li>
+          <li>Click a ticker name to open its chart and notes. The top note explains the label and why.</li>
         </ol>
       </div>
       <div>
@@ -142,9 +137,9 @@ footer a{color:var(--accent)}
         </ol>
         <h3>What it can't do</h3>
         <ul>
-          <li>Predict. A score of 85 means "matches the rules well today", not "85% chance it goes up".</li>
+          <li>Predict. A label means "matches the rules today", not "likely to go up".</li>
           <li>Read the news. Check it yourself before buying.</li>
-          <li>Prove itself yet. New and untested. A second opinion, not an expert. Consider paper trading first.</li>
+          <li>Pick winners. Tested on 2022–2026: the labels did not beat the benchmark after costs. Use it to find charts worth reading, then decide yourself. Consider paper trading first.</li>
         </ul>
       </div>
     </div>
@@ -175,23 +170,22 @@ footer a{color:var(--accent)}
   <section class="cards">
     <div class="card b"><div class="k">Breakout: confirmed / watch</div><div id="c-b" class="v">–</div><div class="d">Closed above the prior 20-day high today / sitting within 1 ATR of it in an uptrend</div></div>
     <div class="card p"><div class="k">Pullback watch</div><div id="c-p" class="v">–</div><div class="d">Rising SMA50, price back near SMA20, RSI 40–60, RS not weak</div></div>
-    <div class="card s"><div class="k">Strongest breakout alignment</div><div id="c-s" class="v">–</div><div class="d">Top scores. Hover a bar for the breakdown. Not a prediction.</div></div>
     <div class="card w"><div class="k">Warnings</div><div id="c-w" class="v">–</div><div class="d">Extended (stretched above SMA20) or heavy selling (big volume, weak close)</div></div>
     <div class="card e"><div class="k">Earnings within 7 days</div><div id="c-e" class="v">–</div><div class="d">Setups near earnings are coin flips. Check the date on investor relations.</div></div>
   </section>
 
   <div class="tablebar">
-    <span class="sub">Click a ticker for its chart. Hover a score for the breakdown.</span>
+    <span class="sub">Click a ticker for its chart and notes. Sorted by label, then name; this is not a ranking.</span>
     <button id="toggle" class="ghost">Show full numbers</button>
   </div>
   <div class="tablewrap">
     <table id="tbl">
       <thead><tr>
-        <th data-k="t">Ticker</th><th data-k="setup" class="l">Setup</th><th data-k="flags" class="l">Flags</th><th data-k="score" class="l">Breakout alignment</th>
+        <th data-k="t">Ticker</th><th data-k="setup" class="l">Setup</th><th data-k="flags" class="l">Flags</th>
         <th data-k="rsB">RS vs bench</th><th data-k="atr">ATR %</th><th data-k="edays">Earnings</th><th data-k="spark">20d</th><th data-k="price">Price</th>
         <th data-k="d1" class="x">1d %</th><th data-k="d5" class="x">5d %</th><th data-k="d20" class="x">20d %</th><th data-k="rsQ" class="x">RS vs QQQ</th>
-        <th data-k="rsi" class="x">RSI</th><th data-k="sma20" class="x">vs SMA20</th><th data-k="sma50" class="x">vs SMA50</th>
-        <th data-k="rng" class="x">20d range</th><th data-k="dvol" class="x">Avg $vol (M)</th><th data-k="vr" class="x">Vol vs avg</th>
+        <th data-k="rsi">RSI</th><th data-k="sma20" class="x">vs SMA20</th><th data-k="sma50" class="x">vs SMA50</th>
+        <th data-k="rng" class="x">20d range</th><th data-k="dvol" class="x">Avg $vol (M)</th><th data-k="vr">Vol vs avg</th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table>
@@ -213,16 +207,15 @@ footer a{color:var(--accent)}
   </section>
 
   <details>
-    <summary>Rules v2.1: how labels, flags and the score are computed</summary>
+    <summary>Rules v3.0: how labels and flags are computed, and why there is no score</summary>
     <div class="legend" style="margin-top:8px">
-      <div><b>Benchmark</b> each stock is compared with one benchmark: SMH for semiconductor names, QQQ for everything else. <b>RS vs bench</b> is the stock's 20-day return minus the benchmark's, in percentage points. Inside the score it is divided by the stock's ATR % so that +5 pts on a calm stock counts for more than +5 pts on a wild one.</div>
+      <div><b>Benchmark</b> each stock is compared with one benchmark: SMH for semiconductor names, QQQ for everything else. <b>RS vs bench</b> is the stock's 20-day return minus the benchmark's, in percentage points. The pullback rule divides it by the stock's ATR % so that +5 pts on a calm stock counts for more than +5 pts on a wild one.</div>
       <div><b>Prior 20-day high/low</b> use sessions t−20 to t−1 and exclude today, so today's bar cannot be its own breakout level.</div>
       <div><b>Setup labels</b> (one per stock). <b>Breakout confirmed</b>: close above the prior 20-day high, price above SMA20 above SMA50, SMA20 rising. <b>Breakout watch</b>: same trend, close within 1 ATR below the prior high and in the top 15% of the prior range. <b>Pullback watch</b>: SMA20 above SMA50, SMA50 rising, price above SMA50, price within −1.5 to +0.5 ATR of SMA20, RSI 40–60, RS vs bench no worse than −1 ATR. <b>Downtrend</b>: price below SMA20 below SMA50. Otherwise <b>No setup</b>.</div>
-      <div><b>Flags</b> (can coexist with any label). <b>Extended</b>: more than 2.5 ATR above SMA20 or RSI above 75. <b>Heavy selling</b>: volume 1.5× average with a close in the bottom 40% of the day's range and below the prior close. <b>Earnings</b> ≤ 7 days. <b>Incomplete</b>: benchmark data missing, score withheld.</div>
-      <div><b>Breakout alignment (0–100)</b>, five buckets. <b>Trend 25</b>: price above SMA20 (8), SMA20 above SMA50 (8), SMA20 rising (5), SMA50 rising (4). <b>Relative strength 25</b>: RS vs bench in ATR units, full 15 at 2.5 ATR; benchmark regime 10: benchmark above its SMA50 (6) and that SMA50 rising (4). <b>Setup 20</b>: position in the prior range from 60% to 100% (0→10), within 1 ATR of the prior high (5), closed above it (5). <b>Volume 15</b>: relative volume scaled 0.8×→2.0×, awarded only if the close is in the upper half of the day's range and above the prior close; otherwise 0. <b>Momentum 15</b>: RSI ramps 40→55 (0→8), flat 55–68, ramps 68→78 (8→0); last 5 days positive (4); last 5 days stronger than the 5 before and positive (3).</div>
-      <div>75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. <b>Not a probability.</b> An 80 means the stock matches the momentum-breakout rules well today. The score is shown next to pullback labels for context only; a pullback score is a later addition.</div>
-      <div><b>ATR %</b> 14-day Wilder ATR as a share of price. <b>RSI</b> 14-day Wilder. <b>Avg $vol</b> mean of close × volume over the last 20 completed sessions. <b>Vol vs avg</b> latest session against the 20 before it; understated while the market is open.</div>
-      <div><b>Snapshots</b> every run is saved in this browser with the rules version, source (live, live-intraday, demo), setup, flags and score so results can be checked later. Copy as CSV to keep it elsewhere.</div>
+      <div><b>Flags</b> (can coexist with any label). <b>Extended</b>: more than 2.5 ATR above SMA20 or RSI above 75. <b>Heavy selling</b>: volume 1.5× average with a close in the bottom 40% of the day's range and below the prior close. <b>Earnings</b> ≤ 7 days. <b>Incomplete</b>: benchmark data missing, RS unavailable.</div>
+      <div><b>Why there is no score.</b> Rules v2.1 had a 0–100 "breakout alignment" score. A replay over Jan 2022–Oct 2026 on this watchlist (see <code>scorecard_v2.1.md</code> on GitHub) compared picking the top 3 by score with picking the top 3 by relative strength alone and by 5-day momentum, buying at the next open, holding 5 sessions, after 0.2% costs. The score did no better than RS, and in the 12 months it had never seen, none of the three beat holding the benchmark. It was removed in v3.0. What remains are rule matches to help you read a chart. <b>They are not a ranking and they are not a prediction.</b></div>
+      <div><b>ATR %</b> 14-day Wilder ATR as a share of price. <b>RSI</b> 14-day Wilder. <b>Avg $vol</b> mean of close × volume over the last 20 completed sessions. <b>Vol vs avg</b> latest session against the 20 before it; not shown while the market is open, because a partial day's volume is not a reading.</div>
+      <div><b>Snapshots</b> every run is saved in this browser with the rules version, source (live, live-intraday, demo), setup, flags and the raw inputs so results can be checked later. Copy as CSV to keep it elsewhere.</div>
     </div>
   </details>
 
@@ -231,7 +224,7 @@ footer a{color:var(--accent)}
 
 <script>
 (function(){
-  const RULES='v2.1', ENGINE='v2.1.1';
+  const RULES='v3.0', ENGINE='v2.1.1';
   const $=id=>document.getElementById(id);
   const rowsEl=$('rows'), msgEl=$('msg'), srcEl=$('src');
   const BENCH=['QQQ','SMH'];
@@ -255,8 +248,6 @@ footer a{color:var(--accent)}
   }
   const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
   const pct=(a,b)=>(a/b-1)*100;
-  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
-  const ramp=(x,x0,x1)=>clamp((x-x0)/(x1-x0),0,1);   // 0 at x0, 1 at x1
 
   // Benchmark context: 20-day return and trend regime
   // Benchmark context: keep the dated closes so returns can be aligned by DATE, not position
@@ -322,29 +313,14 @@ footer a{color:var(--accent)}
     if(edays!=null&&edays>=0&&edays<=7) flags.push('Earnings');
     if(rsB==null) flags.push('Incomplete');
 
-    // ----- breakout alignment score, five buckets. NOT a probability. -----
-    const volConfirm=closeLoc>=.5&&c>=prevC;
-    const sc=invalid?{trend:null,rel:null,setup:null,volume:null,momentum:null}:{
-      trend:(c>sma20?8:0)+(sma20>sma50?8:0)+(sma20>sma20prev?5:0)+(sma50>sma50prev?4:0),
-      rel:rsNorm==null?null:ramp(rsNorm,0,2.5)*15+(B.aboveSma50?6:0)+(B.sma50Rising?4:0),
-      setup:ramp(rangePos,.6,1)*10+((ph-c)<=atr?5:0)+(c>ph?5:0),
-      // Volume is N/A while the session is open: a partial reading is not a bearish signal
-      volume:(status==='intraday'||vr==null)?null:(volConfirm?ramp(vr,.8,2)*15:0),
-      momentum:(rsi<40?0:rsi<55?ramp(rsi,40,55)*8:rsi<=68?8:rsi<78?(1-ramp(rsi,68,78))*8:0)+(d5>0?4:0)+(d5>prev5&&d5>0?3:0),
-    };
-    let score=null, align='Incomplete';
-    if(invalid) align='Invalid data';
-    else if(sc.rel==null) align='Incomplete';
-    else if(sc.volume==null){ score=Math.round(sc.trend+sc.rel+sc.setup+sc.momentum); align='Provisional (intraday, volume n/a, max 85)'; }
-    else { score=Math.round(sc.trend+sc.rel+sc.setup+sc.volume+sc.momentum); align=score>=75?'Strong alignment':score>=55?'Moderate alignment':score>=35?'Mixed signals':'Weak alignment'; }
-    const fx=x=>x==null?'n/a':x.toFixed(0);
-    const breakdown=invalid?'Invalid data (no price movement or NaN); score withheld.':sc.rel==null?'Benchmark data missing; score withheld.':
-      'Trend '+fx(sc.trend)+'/25 · Rel. strength '+fx(sc.rel)+'/25 · Setup '+fx(sc.setup)+'/20 · Volume '+fx(sc.volume)+'/15 · Momentum '+fx(sc.momentum)+'/15';
+    // While the session is open today's volume is partial, so no reading is shown.
+    // A partial reading is not a bearish signal (the heavy-selling flag above also waits for the close).
+    const vrShown=status==='intraday'?null:vr;
 
-    return {t,setup,setupCls:cls,setupRank:rank,flags,flagsKey:flags.join(' '),edays,earnDate:earnDate||'',score,align,breakdown,bname,status,
-      price:c,d1,d5,d20,rsB,rsQ,atr:invalid?null:atrP,rsi:Number.isFinite(rsi)?rsi:null,sma20:pct(c,sma20),sma50:pct(c,sma50),rng:rangePos*100,dvol,vr,
+    return {t,setup,setupCls:cls,setupRank:rank,flags,flagsKey:flags.join(' '),edays,earnDate:earnDate||'',bname,status,
+      price:c,d1,d5,d20,rsB,rsQ,atr:invalid?null:atrP,rsi:Number.isFinite(rsi)?rsi:null,sma20:pct(c,sma20),sma50:pct(c,sma50),rng:rangePos*100,dvol,vr:vrShown,
       spark:bars.slice(-20).map(b=>b.c),lastDate:last.d,bars,
-      raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,sc,closeLoc,prev5,rsNorm,B,volConfirm,prevC,o:last.o,h:last.h,l:last.l,v:last.v}};
+      raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,closeLoc,prev5,rsNorm,B,prevC,vrRaw:vr,o:last.o,h:last.h,l:last.l,v:last.v}};
   }
   // exported for tests/parity.js
   window.StockBoso={analyze,benchInfo,rsiWilder,atrWilder,RULES,ENGINE};
@@ -411,22 +387,18 @@ footer a{color:var(--accent)}
   const flagCls={'Extended':'warn','Heavy selling':'risk','Earnings':'soon','Incomplete':''};
   const flagsCell=r=>'<td class="l">'+(r.flags.map(x=>'<span class="pill '+flagCls[x]+'">'+x+'</span>').join('')||'<span class="sub">–</span>')+'</td>';
   const earnCell=r=>r.edays==null?'<td class="num">–</td>':'<td title="'+r.earnDate+'"><span class="pill'+(r.edays>=0&&r.edays<=7?' soon':'')+'">'+(r.edays<0?'past':r.edays+'d')+'</span></td>';
-  const meter=r=>r.score==null?'<td class="l" title="'+r.breakdown+'"><span class="sub">'+r.align.toLowerCase()+'</span></td>':
-    r.status==='intraday'?'<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+(r.score/85*100)+'%;opacity:.5"></i></div><span class="num">'+r.score+'</span><span class="al">/85 provisional</span></div></td>':
-    '<td class="l" title="'+r.breakdown+'"><div class="meter"><div class="bar"><i style="width:'+r.score+'%"></i></div><span class="num">'+r.score+'</span><span class="al">'+r.align+'</span></div></td>';
   const rsCell=r=>'<td class="num '+(r.rsB>0?'up':r.rsB<0?'down':'')+'" title="vs '+r.bname+'">'+(r.rsB==null?'–':(r.rsB>0?'+':'')+f(r.rsB,1)+' <span class="sub">'+r.bname+'</span>')+'</td>';
   function render(){
     const sorted=rows.slice().sort((a,b)=>{const x=a[sortKey],y=b[sortKey]; if(x==null)return 1; if(y==null)return -1; return (typeof x==='string'?x.localeCompare(y):x-y)*sortDir;});
-    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="l"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+flagsCell(r)+meter(r)+rsCell(r)+
+    rowsEl.innerHTML=sorted.map(r=>'<tr><td class="t">'+r.t+'</td><td class="l"><span class="pill '+r.setupCls+'">'+r.setup+'</span></td>'+flagsCell(r)+rsCell(r)+
       '<td class="num">'+f(r.atr)+'</td>'+earnCell(r)+'<td>'+spark(r.spark)+'</td><td class="num">'+f(r.price)+'</td>'+
-      pc(r.d1,'x')+pc(r.d5,'x')+pc(r.d20,'x')+pc(r.rsQ,'x')+'<td class="x"><span class="pill '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
-      pc(r.sma20,'x')+pc(r.sma50,'x')+'<td class="num x">'+f(r.rng,0)+'</td><td class="num x">'+f(r.dvol,1)+'</td><td class="num x'+(r.vr>1.5?' vol':'')+'">'+f(r.vr)+'×</td></tr>').join('');
+      pc(r.d1,'x')+pc(r.d5,'x')+pc(r.d20,'x')+pc(r.rsQ,'x')+'<td><span class="pill '+(r.rsi<35?'low':r.rsi>70?'high':'')+'">'+f(r.rsi,1)+'</span></td>'+
+      pc(r.sma20,'x')+pc(r.sma50,'x')+'<td class="num x">'+f(r.rng,0)+'</td><td class="num x">'+f(r.dvol,1)+'</td><td class="num'+(r.vr>1.5?' vol':'')+'"'+(r.vr==null?' title="session open: partial volume not shown"':'')+'>'+(r.vr==null?'–':f(r.vr)+'×')+'</td></tr>').join('');
     document.querySelectorAll('th').forEach(th=>th.classList.toggle('on',th.dataset.k===sortKey||(sortKey==='setupRank'&&th.dataset.k==='setup')||(sortKey==='flagsKey'&&th.dataset.k==='flags')));
     const names=p=>rows.filter(p).map(r=>r.t).join(', ')||'none';
     const bc=rows.filter(r=>r.setupCls==='bc').map(r=>r.t), bw=rows.filter(r=>r.setupCls==='bw').map(r=>r.t);
     $('c-b').textContent=(bc.length?bc.join(', '):'none')+' / '+(bw.length?bw.join(', '):'none');
     $('c-p').textContent=names(r=>r.setupCls==='p');
-    $('c-s').textContent=rows.filter(r=>r.score!=null).sort((a,b)=>b.score-a.score).slice(0,4).map(r=>r.t+' '+r.score+(r.status==='intraday'?'/85':'')).join(', ')||'–';
     $('c-w').textContent=rows.filter(r=>r.flags.includes('Extended')||r.flags.includes('Heavy selling')).map(r=>r.t+' ('+r.flags.filter(x=>x!=='Earnings'&&x!=='Incomplete').join(', ').toLowerCase()+')').join(', ')||'none';
     $('c-e').textContent=names(r=>r.flags.includes('Earnings'));
   }
@@ -485,32 +457,29 @@ footer a{color:var(--accent)}
     c2.fillStyle=fg; c2.font='bold '+font; c2.fillText('RSI '+r.rsi.toFixed(1),padL+4,padT+8);
   }
 
-  // One note per score bucket, plus flags and the verdict. Fewer, denser lines.
+  // The label and why, then flags, then the plain readings. Nothing here grades the stock.
   function notesFor(r){
     const v=r.raw, f1=x=>x==null?'–':x.toFixed(1), f2=x=>x==null?'–':x.toFixed(2), li=(cls,t,n)=>'<li class="'+cls+'">'+t+(n?'<span class="n">'+n+'</span>':'')+'</li>';
     const out=[];
-    if(r.flags.includes('Invalid data')) return '<li class="verdict"><b>Invalid data.</b> No price movement in the lookback (ATR is zero) or an indicator came back undefined. Nothing can be scored.</li>';
-    // verdict
+    if(r.flags.includes('Invalid data')) return '<li class="verdict"><b>Invalid data.</b> No price movement in the lookback (ATR is zero) or an indicator came back undefined. Nothing can be read from this.</li>';
     let why;
     if(r.setupCls==='bc') why='Closed above the prior 20-day high in an uptrend. The breakout has happened; the question now is follow-through and where your stop goes (below '+f2(v.ph)+').';
     else if(r.setupCls==='bw') why='In an uptrend and within 1 ATR of the prior 20-day high ('+f2(v.ph)+'). Nothing has triggered yet. A close above that level would confirm.';
-    else if(r.setupCls==='p') why='Healthy uptrend (SMA50 rising) that has dipped back to SMA20 with neutral RSI. The breakout score does not judge pullbacks; it is context only.';
-    else if(r.setupCls==='dn') why='Price below SMA20 below SMA50. The breakout strategy does not buy falling stocks.';
+    else if(r.setupCls==='p') why='Healthy uptrend (SMA50 rising) that has dipped back to SMA20 with neutral RSI.';
+    else if(r.setupCls==='dn') why='Price below SMA20 below SMA50. The breakout rules do not buy falling stocks.';
     else { const miss=[]; if(!v.up) miss.push('not in an uptrend'); if(r.rng<85) miss.push('not near its prior 20-day high'); miss.push('not a clean pullback either'); why='No setup: '+miss.join(', ')+'. Nothing to act on under these rules, in either direction.'; }
-    out.push('<li class="verdict"><b>'+r.setup+'</b>'+(r.score==null?' (score withheld, benchmark missing)':' ('+r.score+'/100, '+r.align.toLowerCase()+')')+'. '+why+'</li>');
+    out.push('<li class="verdict"><b>'+r.setup+'</b>. '+why+' A label is a rule match, not a prediction: in the 2022–2026 replay these labels did not beat the benchmark after costs.</li>');
     if(r.flags.includes('Extended')) out.push(li('bad','Extended: '+f1(v.distSma20)+' ATRs above SMA20'+(r.rsi>75?', RSI '+f1(r.rsi):'')+'. Chasing here is buying a stretched move.'));
     if(r.flags.includes('Heavy selling')) out.push(li('bad','Heavy selling: volume '+f2(r.vr)+'× average with a close in the bottom '+f1(v.closeLoc*100)+'% of the day\'s range.'));
     if(r.flags.includes('Earnings')) out.push(li('bad','Earnings in '+r.edays+' days ('+r.earnDate+'). Setups into earnings are coin flips.'));
-    // buckets
-    const sc=v.sc;
-    out.push(li(sc.trend>=21?'ok':sc.trend>=13?'mid':'bad','Trend '+sc.trend.toFixed(0)+'/25: '+(r.price>v.sma20?'above':'below')+' SMA20, SMA20 '+(v.sma20>v.sma50?'above':'below')+' SMA50, SMA20 '+(v.sma20>v.sma20prev?'rising':'falling')+', SMA50 '+(v.sma50>v.sma50prev?'rising':'falling')+'.',
+    out.push(li('','Trend: '+(r.price>v.sma20?'above':'below')+' SMA20, SMA20 '+(v.sma20>v.sma50?'above':'below')+' SMA50, SMA20 '+(v.sma20>v.sma20prev?'rising':'falling')+', SMA50 '+(v.sma50>v.sma50prev?'rising':'falling')+'.',
       'price '+f2(r.price)+' · SMA20 '+f2(v.sma20)+' ('+(r.sma20>0?'+':'')+f1(r.sma20)+'%) · SMA50 '+f2(v.sma50)+' ('+(r.sma50>0?'+':'')+f1(r.sma50)+'%)'));
-    if(sc.rel==null) out.push(li('mid','Relative strength: benchmark '+r.bname+' not loaded, score withheld.'));
-    else out.push(li(sc.rel>=18?'ok':sc.rel>=10?'mid':'bad','Relative strength '+sc.rel.toFixed(0)+'/25: '+(r.rsB>0?'leading':'lagging')+' '+r.bname+' by '+f1(Math.abs(r.rsB))+' pts over 20 days ('+f1(v.rsNorm)+' ATR). '+r.bname+' itself is '+(v.B.aboveSma50?'above':'below')+' its SMA50, which is '+(v.B.sma50Rising?'rising':'falling')+'.'));
-    out.push(li(sc.setup>=14?'ok':sc.setup>=7?'mid':'bad','Setup '+sc.setup.toFixed(0)+'/20: at '+f1(r.rng)+'% of the prior 20-day range ('+f2(v.pl)+' to '+f2(v.ph)+'), '+(r.price>v.ph?'already above the prior high':f1((v.ph-r.price)/v.atr)+' ATRs below it')+'.'));
-    if(sc.volume==null) out.push(li('mid','Volume n/a: the session is still open, so today\'s volume is partial. Not counted as a negative. Score is provisional out of 85.'));
-    else out.push(li(sc.volume>=9?'ok':sc.volume>=4?'mid':'bad','Volume '+sc.volume.toFixed(0)+'/15: '+f2(r.vr)+'× its 20-day average, close in the '+(v.closeLoc>=.5?'upper':'lower')+' half of the day\'s range'+(v.volConfirm?'.':'; no bullish volume credit.')));
-    out.push(li(sc.momentum>=10?'ok':sc.momentum>=5?'mid':'bad','Momentum '+sc.momentum.toFixed(0)+'/15: RSI '+f1(r.rsi)+', last 5 days '+(r.d5>0?'+':'')+f1(r.d5)+'% vs '+(v.prev5>0?'+':'')+f1(v.prev5)+'% the 5 before.'));
+    if(r.rsB==null) out.push(li('mid','Relative strength: benchmark '+r.bname+' not loaded, so RS is unavailable (Incomplete).'));
+    else out.push(li('','Relative strength: '+(r.rsB>0?'leading':'lagging')+' '+r.bname+' by '+f1(Math.abs(r.rsB))+' pts over 20 days ('+f1(v.rsNorm)+' ATR). '+r.bname+' itself is '+(v.B.aboveSma50?'above':'below')+' its SMA50, which is '+(v.B.sma50Rising?'rising':'falling')+'.'));
+    out.push(li('','Range: at '+f1(r.rng)+'% of the prior 20-day range ('+f2(v.pl)+' to '+f2(v.ph)+'), '+(r.price>v.ph?'already above the prior high':f1((v.ph-r.price)/v.atr)+' ATRs below it')+'.'));
+    if(r.vr==null) out.push(li('mid','Volume n/a: the session is still open, so today\'s volume is partial. Not shown, and not counted as a negative.'));
+    else out.push(li('','Volume: '+f2(r.vr)+'× its 20-day average, close in the '+(v.closeLoc>=.5?'upper':'lower')+' half of the day\'s range.'));
+    out.push(li('','Momentum: RSI '+f1(r.rsi)+', last 5 days '+(r.d5>0?'+':'')+f1(r.d5)+'% vs '+(v.prev5>0?'+':'')+f1(v.prev5)+'% the 5 before.'));
     out.push(li('mid','ATR '+f2(v.atr)+' ('+f1(r.atr)+'% per day). Use it to check your stop distance is reasonable; the stop itself comes from the chart.'));
     return out.join('');
   }
@@ -542,11 +511,9 @@ footer a{color:var(--accent)}
       rows.forEach(r=>{
         const k=r.t+'|'+r.lastDate+'|'+RULES+'|'+ENGINE+'|'+r.status;
         if(have.has(k)) return; have.add(k);           // never rewrite an existing observation
-        const sc=r.raw.sc;
-        h.push({key:k,run_at,rules:RULES,engine:ENGINE,src:source,status:r.status,date:r.lastDate,t:r.t,setup:r.setup,flags:r.flags.join('|'),score:r.score==null?'':r.score,alignment:r.align,
-          c_trend:n(sc.trend),c_rel:n(sc.rel),c_setup:n(sc.setup),c_volume:n(sc.volume),c_momentum:n(sc.momentum),
+        h.push({key:k,run_at,rules:RULES,engine:ENGINE,src:source,status:r.status,date:r.lastDate,t:r.t,setup:r.setup,flags:r.flags.join('|'),
           price:n(r.price),prev_close:n(r.raw.prevC),open:n(r.raw.o),high:n(r.raw.h),low:n(r.raw.l),volume:r.raw.v,sma20:n(r.raw.sma20),sma50:n(r.raw.sma50),sma20_prev:n(r.raw.sma20prev),sma50_prev:n(r.raw.sma50prev),
-          atr:n(r.raw.atr),prior_high:n(r.raw.ph),prior_low:n(r.raw.pl),rsi:n(r.rsi),d5:n(r.d5),prev5:n(r.raw.prev5),vr:n(r.vr),close_loc:n(r.raw.closeLoc),rs_bench:n(r.rsB),bench:r.bname,
+          atr:n(r.raw.atr),prior_high:n(r.raw.ph),prior_low:n(r.raw.pl),rsi:n(r.rsi),d5:n(r.d5),prev5:n(r.raw.prev5),vr:n(r.raw.vrRaw),close_loc:n(r.raw.closeLoc),rs_bench:n(r.rsB),bench:r.bname,
           bench_above_sma50:r.raw.B?r.raw.B.aboveSma50:'',bench_sma50_rising:r.raw.B?r.raw.B.sma50Rising:'',edays:r.edays==null?'':r.edays});
       });
       localStorage.setItem(key,JSON.stringify(h.slice(-6000)));
@@ -554,7 +521,7 @@ footer a{color:var(--accent)}
   }
   $('hist').addEventListener('click',()=>{
     let h=[]; try{h=JSON.parse(localStorage.getItem('sb_history')||'[]');}catch(e){}
-    const cols=['key','run_at','rules','engine','src','status','date','t','setup','flags','score','alignment','c_trend','c_rel','c_setup','c_volume','c_momentum','price','prev_close','open','high','low','volume','sma20','sma50','sma20_prev','sma50_prev','atr','prior_high','prior_low','rsi','d5','prev5','vr','close_loc','rs_bench','bench','bench_above_sma50','bench_sma50_rising','edays'];
+    const cols=['key','run_at','rules','engine','src','status','date','t','setup','flags','price','prev_close','open','high','low','volume','sma20','sma50','sma20_prev','sma50_prev','atr','prior_high','prior_low','rsi','d5','prev5','vr','close_loc','rs_bench','bench','bench_above_sma50','bench_sma50_rising','edays'];
     const csv=[cols.join(',')].concat(h.map(x=>cols.map(c=>x[c]==null?'':x[c]).join(','))).join('\n');
     navigator.clipboard.writeText(csv).then(()=>msgEl.textContent='Copied '+h.length+' snapshot rows as CSV.',()=>{msgEl.textContent='Clipboard blocked here. Open the page in a desktop browser to copy.';});
   });
@@ -574,7 +541,7 @@ footer a{color:var(--accent)}
     rows=got.map(t=>analyze(t,all[t],benches,earn[t])).filter(Boolean);
     if(!rows.length){ msgEl.textContent='No usable data after cleaning.'; return null; }
     const lastDate=rows[0].lastDate, when=new Date(fetchedAt).toLocaleString();
-    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,rows[0].status==='intraday'?'INTRADAY, still changing (volume n/a, scores provisional)':'completed session',Object.keys(benches).join(', ')||'unavailable');
+    setStatus(cached?'LIVE · cached '+when:'LIVE · Twelve Data',lastDate,rows[0].status==='intraday'?'INTRADAY, still changing (volume n/a)':'completed session',Object.keys(benches).join(', ')||'unavailable');
     msgEl.textContent=(cached?'Showing your last live run from '+when+'. Click Run screen to refresh. ':'Loaded '+got.length+' symbols. ')
       +(missed&&missed.length?'Skipped (no data): '+missed.join(', ')+'. ':'')+(earnFetched?'':'Earnings dates not fetched (tick the box to include them).');
     render();

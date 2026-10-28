@@ -1,10 +1,12 @@
 """
-Regression tests for Stock Boso rules v2.1 / engine v2.1.1.
+Regression tests for Stock Boso rules v3.0 / engine v2.1.1.
 
     pip install pytest
     pytest -q
 
-These were written to FAIL against engine v2.1 and pass after v2.1.1.
+Rules v3.0 removed the composite "breakout alignment" score after the historical replay
+(scorecard_v2.1.md) found it had no edge over plain relative strength. The engine keeps the
+labels, flags and raw indicators; these tests pin that behaviour.
 """
 
 from __future__ import annotations
@@ -56,18 +58,28 @@ def test_flat_tail_no_nan(benches):
     assert r is not None
     assert r["RSI"] is not None and 0 <= r["RSI"] <= 100
     assert r["ATR %"] is not None and r["ATR %"] >= 0
-    assert r["Breakout score"] is not None
+    assert r["Setup"] in boso.SETUP_RANK
     assert "Invalid data" not in r["Flags"]
 
 
 def test_fully_flat_is_invalid(benches):
-    """A series with no movement at all has ATR 0: distances are undefined, so the score is withheld."""
+    """A series with no movement at all has ATR 0: distances are undefined, so no label is claimed."""
     df = df_of("FLAT").copy()
     df[["Open", "High", "Low", "Close"]] = 80.0
     r = boso.analyze("FLATX", df, benches, None, now=None)
     assert r is not None
     assert "Invalid data" in r["Flags"]
-    assert r["Breakout score"] is None
+    assert r["Setup"] == "No setup"
+
+
+# ---------------------------------------------------------------------------
+# 2b. Rules v3.0: the composite score is gone. Nothing in the output ranks or grades a stock.
+# ---------------------------------------------------------------------------
+def test_no_score_in_output(benches):
+    r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
+    for k in r:
+        assert "score" not in k.lower() and "alignment" not in k.lower() and not k.startswith("c_"), k
+    assert boso.RULES_VERSION == "v3.0"
 
 
 # ---------------------------------------------------------------------------
@@ -140,42 +152,69 @@ def test_no_duplicate_snapshots(tmp_path, benches):
     assert len(pd.read_csv(f)) == 1
 
 
-def test_snapshot_has_components_and_inputs(tmp_path, benches):
+def test_snapshot_has_inputs_and_no_score_columns(tmp_path, benches):
     r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
     f = tmp_path / "snapshots.csv"
     boso.write_snapshots([r], f, source="test")
     row = pd.read_csv(f).iloc[0]
-    for col in ["snapshot_key", "rules_version", "engine_version", "session_status",
-                "c_trend", "c_rel", "c_setup", "c_volume", "c_momentum",
+    for col in ["snapshot_key", "rules_version", "engine_version", "session_status", "setup", "flags",
                 "in_price", "in_sma20", "in_sma50", "in_atr", "in_prior_high", "in_rsi", "in_vr", "in_rs_bench"]:
         assert col in row.index, col
+    for col in row.index:
+        assert "score" not in col and "alignment" not in col and not col.startswith("c_"), col
+
+
+def test_snapshot_append_aligns_to_existing_header(tmp_path, benches):
+    """snapshots.csv on disk has the v2.1 header (score, alignment, c_* columns). A v3.0 row has
+    fewer columns. Appending must line values up under the existing headings, never shift them."""
+    f = tmp_path / "snapshots.csv"
+    old_cols = ["snapshot_key", "run_at", "rules_version", "engine_version", "source", "session_status",
+                "bar_date", "ticker", "setup", "flags", "score", "alignment",
+                "c_trend", "c_rel", "c_setup", "c_volume", "c_momentum"] + ["in_" + k for k in boso.INPUT_COLS]
+    old = pd.DataFrame([["ACME|2026-10-13|v2.1|v2.1.1|final", "2026-10-13T15:35", "v2.1", "v2.1.1", "test", "final",
+                         "2026-10-13", "ACME", "No setup", "", 61, "Moderate alignment", 25, 15, 6, 8, 7] + [1.0] * len(boso.INPUT_COLS)],
+                       columns=old_cols)
+    old.to_csv(f, index=False)
+    r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
+    assert boso.write_snapshots([r], f, source="test") == 1
+    back = pd.read_csv(f)
+    assert list(back.columns) == old_cols
+    new = back.iloc[1]
+    assert new["rules_version"] == boso.RULES_VERSION
+    assert new["in_price"] == pytest.approx(r["inputs"]["price"])
+    assert new["in_rsi"] == pytest.approx(r["inputs"]["rsi"])
+    assert pd.isna(new["score"]) and pd.isna(new["c_trend"])
+    assert back.iloc[0]["score"] == 61                       # the old row is untouched
 
 
 # ---------------------------------------------------------------------------
-# 8. Incomplete benchmark: score withheld
+# 8. Incomplete benchmark: RS unavailable and flagged, nothing invented
 # ---------------------------------------------------------------------------
-def test_incomplete_benchmark_withholds_score():
+def test_incomplete_benchmark_flagged():
     r = boso.analyze("ACME", df_of("ACME"), {}, None, now=None)
-    assert r["Breakout score"] is None
-    assert r["Alignment"] == "Incomplete"
+    assert r["RS vs bench"] is None
     assert "Incomplete" in r["Flags"]
+    assert r["Setup"] in boso.SETUP_RANK
 
 
 # ---------------------------------------------------------------------------
-# 9. Intraday: volume component N/A and score provisional, never "lower"
+# 9. Intraday: today's partial volume is not shown as a reading, heavy selling waits
 # ---------------------------------------------------------------------------
 def test_intraday_volume_na(benches):
-    df = df_of("ACME")
+    df = df_of("ACME").copy()
     last_day = df.index[-1]
+    # make the open bar look like heavy selling: big volume, close near the low, below the prior close
+    df.loc[last_day, "Volume"] = float(df["Volume"].iloc[-21:-1].mean()) * 3
+    df.loc[last_day, "Close"] = float(df.loc[last_day, "Low"]) + 0.01 * (df.loc[last_day, "High"] - df.loc[last_day, "Low"])
     # pretend "now" is 11:00 ET on the last bar's date
     now = pd.Timestamp(last_day.date()).tz_localize("America/New_York") + pd.Timedelta(hours=11)
     r = boso.analyze("ACME", df, benches, None, now=now)
     assert r["session_status"] == "intraday"
-    assert r["c_volume"] is None
-    assert r["Alignment"].startswith("Provisional")
+    assert r["Vol vs avg"] is None
+    assert "Heavy selling" not in r["Flags"]
     final = boso.analyze("ACME", df, benches, None, now=None)
-    # provisional score equals the final score minus the volume bucket, not less
-    assert r["Breakout score"] == pytest.approx(final["Breakout score"] - final["c_volume"], abs=1)
+    assert final["Vol vs avg"] is not None
+    assert "Heavy selling" in final["Flags"]
 
 
 # ---------------------------------------------------------------------------
@@ -215,11 +254,11 @@ def test_parity_with_javascript(benches):
         w = web[sym]
         assert w["setup"] == py["Setup"], sym
         assert sorted(w["flags"]) == sorted(py["Flags"].split("|") if py["Flags"] else []), sym
-        assert w["score"] == pytest.approx(py["Breakout score"], abs=0.5), sym
-        for k, col in [("trend", "c_trend"), ("rel", "c_rel"), ("setup", "c_setup"), ("volume", "c_volume"), ("momentum", "c_momentum")]:
-            assert w["sc"][k] == pytest.approx(py[col], abs=0.5), (sym, k)
         assert w["rsi"] == pytest.approx(py["RSI"], abs=0.05), sym
         assert w["atr"] == pytest.approx(py["ATR %"], abs=0.02), sym
+        assert w["rsB"] == pytest.approx(py["RS vs bench"], abs=0.05), sym
+        assert w["vr"] == pytest.approx(py["Vol vs avg"], abs=0.02), sym
+        assert "score" not in w and "sc" not in w, sym
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +279,7 @@ def test_analyze_never_reads_clock_in_replay_mode(benches, monkeypatch):
     monkeypatch.setattr(pd.Timestamp, "now", classmethod(lambda cls, tz=None: (_ for _ in ()).throw(AssertionError("Timestamp.now"))))
     r = boso.analyze("ACME", df_of("ACME"), benches, None, now=None)
     assert r["session_status"] == "final"
-    assert r["c_volume"] is not None
+    assert r["Vol vs avg"] is not None
 
 
 # ---------------------------------------------------------------------------

@@ -75,12 +75,13 @@ def main() -> None:
     table = out["table"]
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", None)
-    compact = ["Ticker", "Setup", "Flags", "Breakout score", "Alignment", "RS vs bench", "Bench", "ATR %", "Earnings in (d)", "Price", "Bar date", "session_status"]
+    compact = ["Ticker", "Setup", "Flags", "RS vs bench", "Bench", "RSI", "ATR %", "Vol vs avg", "Earnings in (d)", "Price", "Bar date", "session_status"]
     print(table[compact].to_string(index=False))
 
     status = table["session_status"].iloc[0]
     print(f"\nSaved screener_results.csv/.xlsx; {out['snapshots_written']} new snapshot rows in snapshots.csv")
-    print(f"Bars through {table['Bar date'].iloc[0]} ({status}).", "Intraday: volume bucket n/a, scores provisional." if status == "intraday" else "")
+    print(f"Bars through {table['Bar date'].iloc[0]} ({status}).", "Intraday: volume n/a, heavy-selling flag waits for the close." if status == "intraday" else "")
+    print("Labels are rule matches to help you read a chart, not a ranking. See README: 'Why there is no score'.")
 
     print("\n--- Setups ---")
     for name in boso.SETUP_RANK:

@@ -1,6 +1,6 @@
 """
-replay.py — historical replay of Stock Boso rules v2.1
-=======================================================
+replay.py — historical replay of the Stock Boso rules
+======================================================
 Walks back through years of daily bars and asks, for every past session t:
 "what would the screener have said using only bars up to t, and what happened next?"
 
@@ -8,8 +8,8 @@ Walks back through years of daily bars and asks, for every past session t:
     python replay.py --holdout    # ALSO evaluate the untouched last 12 months. Do this once, at the end.
 
 Outputs (in this folder, gitignored):
-    replay_results.csv   one row per ticker per session: setup, score, components, forward returns
-    scorecard.md         the readable verdict
+    replay_results.csv   one row per ticker per session: setup, flags, indicators, forward returns
+    scorecard.md         the readable tables
     replay_data/         cached Yahoo bars (personal research copy; do not publish)
 
 Two kinds of forward return, labelled everywhere:
@@ -17,7 +17,11 @@ Two kinds of forward return, labelled everywhere:
     ex_net_N  open(t+1) -> close(t+N), minus COST_PCT. Executable: buy next morning, sell N sessions later.
     rel_*     the same, minus the benchmark (SMH for semis, QQQ otherwise) over the same dates.
 
-The rules are not changed or tuned here. This only measures them.
+History: this tool was built to test rules v2.1, whose 0-100 score it compared against ranking by
+relative strength and by 5-day momentum. The score lost (scorecard_v2.1.md; reproducible from git
+tag rules-v2.1) and was removed in v3.0. The replay now reports RS, momentum and the all-names
+baseline so future research (wider universe, longer holds) starts from an honest tool.
+It changes or tunes nothing. It only measures.
 """
 
 from __future__ import annotations
@@ -35,16 +39,16 @@ import boso
 LOOKBACK_BARS = 126        # ~6 months, the same window the live screener downloads
 END_GAP = 10               # stop 10 sessions before the end so every horizon has its outcome
 HORIZONS = (1, 3, 5, 10)
-PRIMARY = 5                # the 5-session horizon decides; 1/3/10 are context
+PRIMARY = 5                # the 5-session horizon is the headline; 1/3/10 are context
 COST_PCT = 0.20            # round trip, %: ~0.10 commission/spread + ~0.10 slippage
 TOP_N = 3
 LARGE_LOSS_PCT = -5.0      # a single trade losing more than this counts as a large loss
 HOLDOUT_MONTHS = 12
 BOOT_BLOCK = 10            # sessions per bootstrap block (5-day trades overlap, so days are not independent)
 BOOT_N = 2000
-RANKERS = ("score", "rs", "mom5")
-RANKER_NAMES = {"score": "Top 3 by breakout score", "rs": "Top 3 by RS vs bench",
-                "mom5": "Top 3 by 5-day momentum", "all": "All eligible (equal weight)"}
+RANKERS = ("rs", "mom5")
+RANKER_NAMES = {"rs": "Top 3 by RS vs bench", "mom5": "Top 3 by 5-day momentum",
+                "all": "All eligible (equal weight)"}
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +115,7 @@ def replay_ticker(ticker: str, df: pd.DataFrame, bench_dfs: dict[str, pd.DataFra
         q = benches.get("QQQ")
         rows.append({
             "date": t.date().isoformat(), "ticker": ticker, "bench": bname,
-            "setup": r["Setup"], "flags": r["Flags"], "score": r["Breakout score"], "alignment": r["Alignment"],
-            "c_trend": r["c_trend"], "c_rel": r["c_rel"], "c_setup": r["c_setup"],
-            "c_volume": r["c_volume"], "c_momentum": r["c_momentum"],
+            "setup": r["Setup"], "flags": r["Flags"],
             "rs": r["RS vs bench"], "mom5": r["5d %"], "rsi": r["RSI"], "atr_pct": r["ATR %"],
             "qqq_above_sma50": None if q is None else q["above_sma50"],
             **forward_returns(df, i, bench_dfs.get(bname), HORIZONS, cost_pct),
@@ -132,13 +134,14 @@ def mark_episodes(rows: list[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------------------
 # Ranking and portfolios — every ranker draws from the same eligible universe
+# (eligible = relative strength available, i.e. the benchmark was loaded that day)
 # ---------------------------------------------------------------------------
 def _ok(x) -> bool:
     return x is not None and not (isinstance(x, float) and math.isnan(x))
 
 
 def top_n(day_rows: list[dict], key: str, n: int = TOP_N) -> list[dict]:
-    eligible = [r for r in day_rows if _ok(r.get("score")) and _ok(r.get(key))]
+    eligible = [r for r in day_rows if _ok(r.get("rs")) and _ok(r.get(key))]
     return sorted(eligible, key=lambda r: (-r[key], r["ticker"]))[:n]
 
 
@@ -153,7 +156,7 @@ def picks(rows: list[dict], key: str, horizon: int = PRIMARY, n: int = TOP_N) ->
 def _by_date(rows: list[dict], horizon: int, n: int):
     days: dict[str, list[dict]] = {}
     for r in rows:
-        if _ok(r.get("score")) and _ok(r.get(f"rel_net_{horizon}")):
+        if _ok(r.get("rs")) and _ok(r.get(f"rel_net_{horizon}")):
             days.setdefault(r["date"], []).append(r)
     for d in sorted(days):
         if len(days[d]) >= n:
@@ -232,23 +235,6 @@ def _f(x, d: int = 2, signed: bool = True) -> str:
     return f"{x:+.{d}f}" if signed else f"{x:.{d}f}"
 
 
-def verdict(rows: list[dict]) -> tuple[bool, str, dict]:
-    """The decision rule, fixed before any results were seen:
-    the score passes only if, at the 5-session horizon, executable, benchmark-relative, after costs,
-      (a) its mean daily return beats top-3-by-RS,
-      (b) the bootstrap puts at least 90% probability on that difference being above zero, and
-      (c) it beats RS in at least two thirds of the calendar years covered."""
-    p = daily_portfolios(rows, PRIMARY)
-    diff = p["score"] - p["rs"]
-    bs = block_bootstrap(diff.to_numpy())
-    years = diff.groupby(pd.to_datetime(diff.index).year).mean()
-    yrs_up = int((years > 0).sum())
-    ok = bs["mean"] > 0 and bs["p_pos"] >= 0.90 and yrs_up >= math.ceil(len(years) * 2 / 3)
-    why = (f"score − RS = {_f(bs['mean'], 3)}% per trade-day (90% interval {_f(bs['lo'], 3)} to {_f(bs['hi'], 3)}), "
-           f"P(>0) = {bs['p_pos']:.0%}, ahead in {yrs_up} of {len(years)} years")
-    return ok, why, {"bs": bs, "years": years}
-
-
 def section(rows: list[dict], title: str) -> list[str]:
     L = [f"## {title}", ""]
     if not rows:
@@ -256,14 +242,11 @@ def section(rows: list[dict], title: str) -> list[str]:
     p = daily_portfolios(rows, PRIMARY)
     if p.empty:
         return L + ["Not enough eligible names on any day.", ""]
-    ok, why, v = verdict(rows)
-    L += [f"**Verdict: {'the score BEATS RS-alone' if ok else 'the score does NOT beat RS-alone'}** — {why}.", ""]
-    L += ["Decision rule (agreed in advance): if the score does not beat RS-alone after costs with reasonable "
-          "stability, drop the composite and keep the indicators.", ""]
 
     L += [f"### Headline: {PRIMARY}-session, executable (next open → close), net of {COST_PCT}% costs", "",
           f"{len(p)} trading days. 'vs bench' = return minus SMH/QQQ over the same dates. "
-          "Win rate and win/loss are absolute (did the trade itself make money).", "",
+          "Win rate and win/loss are absolute (did the trade itself make money). "
+          "An interval that includes 0 means the data cannot tell the ranking apart from no edge.", "",
           "| Ranking | mean vs bench % | 90% interval | win rate | avg win % | avg loss % | "
           f"large losses (≤{LARGE_LOSS_PCT:.0f}%) | MAE median % | MAE worst 10% | mean at 2× costs |",
           "|---|---|---|---|---|---|---|---|---|---|"]
@@ -277,17 +260,17 @@ def section(rows: list[dict], title: str) -> list[str]:
                  f"{_f(bs['mean'] - COST_PCT)} |")
     L.append("")
 
-    L += ["### Head to head at every horizon (score minus the alternative, executable, vs bench, net)", "",
-          "| Horizon | score − RS | P(>0) | score − momentum | P(>0) | score top-3, close→close (descriptive) |",
-          "|---|---|---|---|---|---|"]
+    L += ["### Every horizon (executable, vs bench, net; mean and P(mean > 0) from the bootstrap)", "",
+          "| Horizon | RS top-3 | P(>0) | momentum top-3 | P(>0) | all names | P(>0) | RS − all |",
+          "|---|---|---|---|---|---|---|---|"]
     for h in HORIZONS:
         ph = daily_portfolios(rows, h)
         if ph.empty:
             continue
-        a, b = block_bootstrap((ph["score"] - ph["rs"]).to_numpy()), block_bootstrap((ph["score"] - ph["mom5"]).to_numpy())
-        cc = np.nanmean([r[f"rel_cc_{h}"] if _ok(r.get(f"rel_cc_{h}")) else np.nan for r in picks(rows, "score", h)])
-        L.append(f"| {h}d{' (primary)' if h == PRIMARY else ''} | {_f(a['mean'], 3)} | {a['p_pos']:.0%} | "
-                 f"{_f(b['mean'], 3)} | {b['p_pos']:.0%} | {_f(cc, 3)} |")
+        a, b, c = (block_bootstrap(ph[k].to_numpy()) for k in ("rs", "mom5", "all"))
+        d = block_bootstrap((ph["rs"] - ph["all"]).to_numpy())
+        L.append(f"| {h}d{' (headline)' if h == PRIMARY else ''} | {_f(a['mean'], 3)} | {a['p_pos']:.0%} | "
+                 f"{_f(b['mean'], 3)} | {b['p_pos']:.0%} | {_f(c['mean'], 3)} | {c['p_pos']:.0%} | {_f(d['mean'], 3)} |")
     L.append("")
 
     L += [f"### Does a higher number mean a better {PRIMARY}-day result? (rank IC)", "",
@@ -313,27 +296,16 @@ def section(rows: list[dict], title: str) -> list[str]:
                  f"{_f(s.get('large_loss'), 1, False)}% | {_f(s.get('mae_p10'))} |")
     L.append("")
 
-    L += ["### By score bucket (all scored ticker-days)", "",
-          "| Bucket | ticker-days | mean vs bench % | win rate |", "|---|---|---|---|"]
-    for name, lo, hi in [("Strong ≥75", 75, 101), ("Moderate 55–74", 55, 75), ("Mixed 35–54", 35, 55), ("Weak <35", -1, 35)]:
-        b = [r for r in rows if _ok(r.get("score")) and lo <= r["score"] < hi]
-        s = trade_stats([r[f"ex_net_{PRIMARY}"] for r in b], [])
-        rel = [r[f"rel_net_{PRIMARY}"] for r in b if _ok(r.get(f"rel_net_{PRIMARY}"))]
-        L.append(f"| {name} | {s['n']} | {_f(np.mean(rel) if rel else float('nan'))} | "
-                 f"{_f(s.get('win_rate'), 0, False)}% |")
-    L.append("")
-
-    diff = p["score"] - p["rs"]
-    L += ["### Stability", "", "| Period | days | score − RS % | score % | RS % |", "|---|---|---|---|---|"]
+    L += ["### Stability", "", "| Period | days | RS % | momentum % | all % |", "|---|---|---|---|---|"]
     yr = pd.to_datetime(p.index).year
     for y in sorted(set(yr)):
         g = p[yr == y]
-        L.append(f"| {y} | {len(g)} | {_f((g['score'] - g['rs']).mean(), 3)} | {_f(g['score'].mean())} | {_f(g['rs'].mean())} |")
+        L.append(f"| {y} | {len(g)} | {_f(g['rs'].mean())} | {_f(g['mom5'].mean())} | {_f(g['all'].mean())} |")
     reg = {r["date"]: r["qqq_above_sma50"] for r in rows if r.get("qqq_above_sma50") is not None}
     for label, want in [("QQQ above its SMA50", True), ("QQQ below its SMA50", False)]:
         g = p[[reg.get(d) is want for d in p.index]]
         if len(g):
-            L.append(f"| {label} | {len(g)} | {_f((g['score'] - g['rs']).mean(), 3)} | {_f(g['score'].mean())} | {_f(g['rs'].mean())} |")
+            L.append(f"| {label} | {len(g)} | {_f(g['rs'].mean())} | {_f(g['mom5'].mean())} | {_f(g['all'].mean())} |")
     L.append("")
     return L
 
@@ -347,13 +319,15 @@ def scorecard(dev: list[dict], hold: list[dict], holdout_start: str, show_holdou
          f"{'SHOWN below' if show_holdout else 'hidden; run `python replay.py --holdout` once, at the end'}.", "",
          "**Read this first**", "",
          "- This is research, not a trading signal. Past results do not predict future ones.",
+         "- The v2.1 composite score was tested with this tool and removed; that result is frozen in "
+         "`scorecard_v2.1.md`. This report covers the remaining rankings only.",
          "- **Survivorship bias:** the 20 names were picked in 2026, knowing they mattered. Absolute returns are "
-         "flattered. The fair comparison is *between rankings on the same names and days*, which is what the verdict uses.",
+         "flattered. Only comparisons *between rankings on the same names and days* are fair.",
          "- Earnings dates are not known historically, so the Earnings flag never fires here.",
          f"- Costs: {COST_PCT}% per round trip on every trade. Each day's top 3 is treated as a fresh {PRIMARY}-day trade; "
          "real holding would overlap and trade less often.",
-         "- Comparisons run: 3 rankings × 4 horizons, plus setup and bucket tables. With that many looks, one "
-         "'good-looking' number by itself means little. Only the primary verdict line counts.", ""]
+         "- Comparisons run: 2 rankings + baseline × 4 horizons, plus setup tables. With that many looks, one "
+         "'good-looking' number by itself means little.", ""]
     L += section(dev, "Development period")
     if show_holdout:
         L += section(hold, "Holdout period (last 12 months, evaluated once)")
@@ -419,9 +393,7 @@ def main() -> None:
     meta = {"generated": datetime.now().strftime("%Y-%m-%d %H:%M"), "tickers": used,
             "first": min(r["date"] for r in rows), "last": last}
     Path("scorecard.md").write_text(scorecard(dev, hold, start, args.holdout, meta), encoding="utf-8")
-    ok, why, _ = verdict(dev)
     print(f"\n{len(out)} rows -> replay_results.csv; scorecard -> scorecard.md")
-    print(f"Development verdict: {'score BEATS RS-alone' if ok else 'score does NOT beat RS-alone'} ({why})")
     if not args.holdout:
         print(f"Holdout from {start} is untouched. Run with --holdout once you are done looking.")
 

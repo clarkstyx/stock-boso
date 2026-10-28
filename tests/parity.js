@@ -24,6 +24,6 @@ const benches = {}; for (const b of ['QQQ', 'SMH']) benches[b] = api.benchInfo(f
 const out = {};
 for (const sym of ['ACME', 'UPUP']) {
   const r = api.analyze(sym, fx[sym], benches, null, null);   // now=null -> treat as completed session
-  out[sym] = { setup: r.setup, flags: r.flags, score: r.score, sc: r.raw.sc, rsi: r.rsi, atr: r.atr, rsB: r.rsB };
+  out[sym] = { setup: r.setup, flags: r.flags, rsi: r.rsi, atr: r.atr, rsB: r.rsB, vr: r.vr };
 }
 process.stdout.write(JSON.stringify(out));

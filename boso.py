@@ -1,5 +1,5 @@
 """
-boso.py — Stock Boso engine (rules v2.1, engine v2.1.1)
+boso.py — Stock Boso engine (rules v3.0, engine v2.1.1)
 ========================================================
 Pure logic, no network. stock_screener.py wraps this for the command line;
 tests/test_boso.py exercises it directly; index.html mirrors it in JavaScript
@@ -7,6 +7,11 @@ and tests/parity.js checks the two agree.
 
 Rules version changes only when the strategy changes.
 Engine version changes when a calculation or data-handling defect is fixed.
+
+v3.0 (Oct 2026): the 0-100 "breakout alignment" score was removed. A historical replay of
+v2.1 (replay.py, scorecard_v2.1.md, git tag rules-v2.1) found that ranking by the score did no
+better than ranking by relative strength alone, and that neither beat the benchmark after costs.
+The engine now returns a setup label, risk flags and the raw indicators. It ranks nothing.
 """
 
 from __future__ import annotations
@@ -18,7 +23,7 @@ from typing import Callable
 
 import pandas as pd
 
-RULES_VERSION = "v2.1"
+RULES_VERSION = "v3.0"
 ENGINE_VERSION = "v2.1.1"
 
 BENCHMARKS = ["QQQ", "SMH"]
@@ -88,14 +93,6 @@ def pct(a: float, b: float) -> float:
     return (a / b - 1) * 100
 
 
-def clamp(x: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, x))
-
-
-def ramp(x: float, x0: float, x1: float) -> float:
-    return clamp((x - x0) / (x1 - x0), 0, 1)
-
-
 # ---------------------------------------------------------------------------
 # Benchmarks — keep the close series so returns can be aligned by DATE
 # ---------------------------------------------------------------------------
@@ -128,7 +125,7 @@ def session_status(last_bar_date: date, now: pd.Timestamp | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# The rules — v2.1, mirror of index.html analyze()
+# The rules — v3.0, mirror of index.html analyze(). Labels and flags only; no score.
 # ---------------------------------------------------------------------------
 def analyze(ticker: str, df: pd.DataFrame, benches: dict[str, dict], earnings: date | None,
             now: pd.Timestamp | None) -> dict | None:
@@ -203,52 +200,22 @@ def analyze(ticker: str, df: pd.DataFrame, benches: dict[str, dict], earnings: d
     if rs_b is None:
         flags.append("Incomplete")
 
-    # ----- breakout alignment score. Five buckets. NOT a probability. -----
-    if invalid:
-        parts = {"trend": None, "rel": None, "setup": None, "volume": None, "momentum": None}
-    else:
-        vol_confirm = close_loc >= 0.5 and c >= prev_c
-        parts = {
-            "trend": (8 if c > sma20 else 0) + (8 if sma20 > sma50 else 0)
-                     + (5 if sma20 > sma20_prev else 0) + (4 if sma50 > sma50_prev else 0),
-            "rel": None if rs_norm is None else
-                   ramp(rs_norm, 0, 2.5) * 15 + (6 if B["above_sma50"] else 0) + (4 if B["sma50_rising"] else 0),
-            "setup": ramp(range_pos, 0.6, 1) * 10 + (5 if ph - c <= atr else 0) + (5 if c > ph else 0),
-            # Volume is N/A while the session is open: a partial reading is not a bearish signal
-            "volume": None if (status == "intraday" or vr is None) else (ramp(vr, 0.8, 2) * 15 if vol_confirm else 0),
-            "momentum": (0 if rsi < 40 else ramp(rsi, 40, 55) * 8 if rsi < 55 else 8 if rsi <= 68
-                         else (1 - ramp(rsi, 68, 78)) * 8 if rsi < 78 else 0)
-                        + (4 if d5 > 0 else 0) + (3 if d5 > prev5 and d5 > 0 else 0),
-        }
-
-    if invalid:
-        score, align = None, "Invalid data"
-    elif parts["rel"] is None:
-        score, align = None, "Incomplete"
-    elif parts["volume"] is None:
-        score = round(parts["trend"] + parts["rel"] + parts["setup"] + parts["momentum"])
-        align = "Provisional (intraday, volume n/a, max 85)"
-    else:
-        score = round(sum(parts.values()))
-        align = ("Strong alignment" if score >= 75 else "Moderate alignment" if score >= 55
-                 else "Mixed signals" if score >= 35 else "Weak alignment")
+    # While the session is open today's volume is partial, so no reading is shown.
+    # A partial reading is not a bearish signal (the heavy-selling flag above also waits for the close).
+    vr_shown = None if status == "intraday" else vr
 
     r2 = lambda x: None if x is None else round(x, 2)
     return {
         "Ticker": ticker, "Setup": setup, "Flags": "|".join(flags),
-        "Breakout score": score, "Alignment": align,
-        "Score breakdown": " · ".join(f"{k} {'n/a' if v is None else f'{v:.0f}'}" for k, v in parts.items()),
         "Bench": bname, "RS vs bench": r2(rs_b), "RS vs QQQ": r2(rs_q),
         "Earnings in (d)": edays, "Earnings date": earnings.isoformat() if earnings else "",
         "Price": round(c, 2), "1d %": round(d1, 2), "5d %": round(d5, 2), "20d %": round(d20, 2),
         "ATR %": r2(atr_pct), "RSI": None if math.isnan(rsi) else round(rsi, 1),
         "vs SMA20 %": round(pct(c, sma20), 2), "vs SMA50 %": round(pct(c, sma50), 2),
         "Prior 20d range pos": round(range_pos * 100, 1), "Prior 20d high": round(ph, 2),
-        "Avg $Vol (M)": round(dollar_vol, 1), "Vol vs avg": r2(vr),
+        "Avg $Vol (M)": round(dollar_vol, 1), "Vol vs avg": r2(vr_shown),
         "Bar date": last_date.isoformat(), "session_status": status,
-        # components and raw inputs, kept for snapshots and replay
-        "c_trend": parts["trend"], "c_rel": parts["rel"], "c_setup": parts["setup"],
-        "c_volume": parts["volume"], "c_momentum": parts["momentum"],
+        # raw inputs, kept for snapshots and replay
         "inputs": {
             "price": c, "prev_close": prev_c, "open": float(last["Open"]), "high": hi, "low": lo, "volume": float(last["Volume"]),
             "sma20": sma20, "sma50": sma50, "sma20_prev": sma20_prev, "sma50_prev": sma50_prev,
@@ -265,8 +232,7 @@ def analyze(ticker: str, df: pd.DataFrame, benches: dict[str, dict], earnings: d
 # Snapshots — one row per ticker per bar date per rules version per session status
 # ---------------------------------------------------------------------------
 SNAP_COLS = ["snapshot_key", "run_at", "rules_version", "engine_version", "source", "session_status",
-             "bar_date", "ticker", "setup", "flags", "score", "alignment",
-             "c_trend", "c_rel", "c_setup", "c_volume", "c_momentum"]
+             "bar_date", "ticker", "setup", "flags"]
 INPUT_COLS = ["price", "prev_close", "open", "high", "low", "volume", "sma20", "sma50", "sma20_prev", "sma50_prev",
               "atr", "prior_high", "prior_low", "rsi", "d5", "prev5", "vr", "close_loc", "rs_bench", "bench",
               "bench_above_sma50", "bench_sma50_rising", "edays"]
@@ -291,16 +257,24 @@ def write_snapshots(rows: list[dict], path: Path | str, source: str, run_at: dat
         rec = {"snapshot_key": key, "run_at": run_at.isoformat(timespec="minutes"),
                "rules_version": RULES_VERSION, "engine_version": ENGINE_VERSION, "source": source,
                "session_status": r["session_status"], "bar_date": r["Bar date"], "ticker": r["Ticker"],
-               "setup": r["Setup"], "flags": r["Flags"], "score": r["Breakout score"], "alignment": r["Alignment"],
-               "c_trend": r["c_trend"], "c_rel": r["c_rel"], "c_setup": r["c_setup"],
-               "c_volume": r["c_volume"], "c_momentum": r["c_momentum"]}
+               "setup": r["Setup"], "flags": r["Flags"]}
         for k in INPUT_COLS:
             rec["in_" + k] = r["inputs"].get(k)
         out.append(rec)
     if not out:
         return 0
-    pd.DataFrame(out, columns=SNAP_COLS + ["in_" + k for k in INPUT_COLS]).to_csv(
-        path, mode="a", index=False, header=not path.exists())
+    cols = SNAP_COLS + ["in_" + k for k in INPUT_COLS]
+    frame = pd.DataFrame(out, columns=cols)
+    if path.exists():
+        # Append-only file: line values up under the header already on disk. An older header may
+        # carry extra columns (v2.1's score fields); those stay empty for new rows. A header that
+        # lacks a column we need would silently drop data, so refuse instead.
+        on_disk = list(pd.read_csv(path, nrows=0).columns)
+        missing = [c for c in cols if c not in on_disk]
+        if missing:
+            raise ValueError(f"{path} header lacks {missing}; start a new snapshot file rather than mixing formats")
+        frame = frame.reindex(columns=on_disk)
+    frame.to_csv(path, mode="a", index=False, header=not path.exists())
     return len(out)
 
 
@@ -316,7 +290,7 @@ def run_screen(watchlist: list[str], fetch: Callable[[str], pd.DataFrame | None]
     for b in BENCHMARKS:
         bdf = fetch(b)
         if bdf is None or len(bdf) < MIN_BARS:
-            warnings.append(f"benchmark {b} unavailable; dependent scores withheld")
+            warnings.append(f"benchmark {b} unavailable; RS left empty and rows flagged Incomplete")
             continue
         cleaned, dropped = clean_bars(bdf)
         benches[b] = bench_series(cleaned)
@@ -339,7 +313,7 @@ def run_screen(watchlist: list[str], fetch: Callable[[str], pd.DataFrame | None]
         return {"rows": [], "warnings": warnings, "error": "No data for any ticker. Nothing written."}
 
     table = pd.DataFrame([{k: v for k, v in r.items() if k != "inputs"} for r in rows])
-    table = table.sort_values(["_rank", "Breakout score"], ascending=[True, False], na_position="last")
+    table = table.sort_values(["_rank", "Ticker"])        # by label, then alphabetical: no ranking implied
     table = table.drop(columns="_rank").reset_index(drop=True)
     table.to_csv(outdir / "screener_results.csv", index=False)
     try:

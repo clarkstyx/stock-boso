@@ -5,12 +5,14 @@ Read this first. It is the handover from the claude.ai session that built the pr
 ## What this is
 
 A swing-trading **screener**, not a signal service. It matches daily bars against written rules,
-labels setups, flags risks, and shows a transparent 0–100 "breakout alignment" score with its five
-components. It never says buy/sell. Owner: Clark Valencia (Valencia AI). Beginner programmer,
+labels setups, flags risks and shows the raw indicators. It never says buy/sell and, since rules
+v3.0, it **ranks and scores nothing**. Owner: Clark Valencia (Valencia AI). Beginner programmer,
 vibe-codes with AI; explain changes plainly and keep deliverables complete and copy-pasteable.
 
-Rules are **frozen at v2.1**. Do not add indicators, change weights, or redesign the score. The whole
-point of the next phase is to test whether v2.1 adds value; changing it first would invalidate that.
+Rules are at **v3.0** (Oct 28, 2026): labels + flags, no composite score. v2.1 had a 0–100 score; it
+was frozen, replayed over 2022–2026 (`scorecard_v2.1.md`, git tag `rules-v2.1`), lost to plain RS,
+and was removed per the rule agreed before the test. Do not add indicators or a new score without a
+written test design agreed first; on 20 survivor names that is data mining.
 
 ## Layout
 
@@ -19,7 +21,8 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 | `boso.py` | The engine. Pure logic, no network, no clock when `now=None`. Everything else calls this. |
 | `stock_screener.py` | CLI. Yahoo Finance via yfinance → `boso.run_screen()` → CSV/XLSX + `snapshots.csv`. |
 | `index.html` | Single-page web version. Same rules in JavaScript. Demo data by default; live via a Twelve Data key in the browser. Exports `window.StockBoso` for parity tests. Hosted on GitHub Pages. |
-| `replay.py` | Historical replay of v2.1 → `replay_results.csv` + `scorecard.md`. |
+| `replay.py` | Historical replay: slices bars to each past day, records forward returns, compares RS / momentum / all-names. Writes `replay_results.csv` + `scorecard.md` (both gitignored). |
+| `scorecard_v2.1.md` | **Frozen record** of the v2.1 score test. Do not regenerate or edit. Reproduce from tag `rules-v2.1`. |
 | `tests/` | 28 pytest cases (17 engine + 11 replay) incl. Python↔JS parity on `tests/fixtures/bars.json`. `pytest -q` must stay green. |
 | `setup_windows_task.bat` | One-click Windows setup: installs deps, test run, schedules weekdays 15:35 Regina (after US close in EDT and EST). |
 | `snapshots.csv` | **Research record.** One row per ticker per bar date per rules+engine version per session status. Append-only, idempotent, never rewrite. Gitignored. |
@@ -28,7 +31,7 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 
 ## Versions
 
-- `RULES_VERSION = v2.1` — strategy. Frozen.
+- `RULES_VERSION = v3.0` — strategy. Labels and flags only.
 - `ENGINE_VERSION = v2.1.1` — calculations/data handling. Bump only for a demonstrated correctness fix,
   log it in README, and note that numbers may shift slightly. Snapshot keys include both versions.
 
@@ -39,10 +42,11 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
   `SEMIS`, QQQ otherwise. Missing benchmark → `Incomplete`, score withheld (never neutral points).
 - RSI/ATR are Wilder, seeded with a 14-bar simple average (TradingView RMA). Python and JS must match
   within 0.5 per score component, labels exactly.
-- Intraday (US market open on the latest bar's date): volume bucket is **n/a**, score is "Provisional
-  (max 85)", heavy-selling flag waits for the close. A partial reading is never scored as bearish.
+- Intraday (US market open on the latest bar's date): `Vol vs avg` is **None**, heavy-selling flag
+  waits for the close. A partial reading is never shown as bearish.
 - `boso.analyze(..., now=None)` must never consult the clock (test 12). This is what the replay uses.
-- Extended is a **flag**, not a score penalty. Earnings proximity is a flag, outside the score.
+- Extended and Earnings are **flags**. No field in the output grades or ranks a stock (test 2b).
+- Table order is label rank, then ticker. Never sort by an indicator by default.
 - Bad/NaN OHLC bars are dropped and the row is flagged; zero-movement series → `Invalid data`.
 
 ## Current state (as of Oct 27, 2026)
@@ -69,12 +73,15 @@ Rank IC ≈ 0 for score, RS and momentum alike. RS/momentum top-3 ≈ +0.47% but
 **Holdout OPENED Oct 28, 2026** (Clark: "do what gives the best earnings"): score −0.04%, RS +0.02%,
 momentum −0.23%, all names −0.23%; all CIs straddle 0. RS's development edge did not repeat.
 Breakout confirmed/watch episodes did worse than Downtrend in the holdout. **No ranking tested has
-an edge on this universe at 5-day holds.** Decision per the pre-agreed rule: the composite score is
-dropped as a signal (implementation pending: remove/relabel score on page + CLI, bump rules to v3,
-keep labels and flags as chart aids). Do not add indicators to "fix" this: 20 survivor names ×
-one more comparison is data mining. Honest next steps are a wider universe, longer horizons, and the
-risk calculator. Replay uses a 126-bar window per day to match the live 6-month download. Verdict
-rule is in `replay.verdict()`; it was not changed after seeing results.
+an edge on this universe at 5-day holds.** Decision per the pre-agreed rule, taken by Clark Oct 28:
+**score removed entirely, rules v3.0** (engine, page, CLI, snapshots, tests all changed together;
+`replay.py` now compares RS / momentum / all-names and has no verdict function, since the v2.1
+verdict is history). Do not add indicators to "fix" this: 20 survivor names × one more comparison
+is data mining. Honest next steps: risk calculator, then a pre-registered second replay with a
+wider universe and 20–60 session holds. Replay uses a 126-bar window per day to match the live
+6-month download. Snapshot keys include the rules version, so v3.0 rows sit beside v2.1 rows in
+`snapshots.csv` without collision; old rows keep their score columns, new rows don't have them
+(pandas appends by header; read with care).
 
 The original plan, kept for reference:
 
@@ -109,4 +116,5 @@ After the replay: a separate Trend Pullback score, then a conservative entry/sto
 - Python and JS must change together; the parity test will catch drift.
 - Commit messages describe behaviour, not files. Push to `main`; GitHub Pages redeploys automatically.
 - The web page's `<title>` stays "Stock Boso"; header shows `rules vX · engine vY`.
+- The "Why there is no score" explanations on the page and in README are deliberate. Keep them.
 - Disclaimer and "How to use" sections on the page are intentional; keep them.

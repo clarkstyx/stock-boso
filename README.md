@@ -1,7 +1,8 @@
 # stock-boso
 
-A swing-trading screener. It identifies and ranks trade setups, shows the evidence,
-and flags risks. The trading decision stays with you. Not financial advice.
+A swing-trading screener. It labels trade setups, shows the evidence and flags risks.
+It does not rank or score anything (see "Why there is no score" below). The trading
+decision stays with you. Not financial advice.
 
 Two versions, same math:
 
@@ -30,17 +31,20 @@ Open `index.html` in a browser. Paste a Twelve Data API key (free at twelvedata.
 click **Run screen**. The free tier allows 8 credits/min, so 20 tickers + 2 benchmarks
 takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit per symbol).
 
-## What it computes (rules v2.1)
+## What it computes (rules v3.0)
 
 | Column | What it means |
 |---|---|
 | Setup | One label per stock, a rule match, not a prediction: Breakout confirmed / Breakout watch / Pullback watch / Downtrend / No setup |
-| Flags | Can coexist with any label: Extended, Heavy selling, Earnings (≤ 7 days), Incomplete (benchmark missing, score withheld) |
-| Breakout alignment | 0–100 score of how well the stock matches the momentum-breakout strategy today. Not a probability. Shown next to pullback labels for context only. |
+| Flags | Can coexist with any label: Extended, Heavy selling, Earnings (≤ 7 days), Incomplete (benchmark missing, RS unavailable) |
 | RS vs bench | 20-day return minus the benchmark's (SMH for semiconductors, QQQ for everything else), in percentage points. |
+| RSI | 14-day Wilder RSI. |
 | ATR % | 14-day Wilder ATR (includes overnight gaps) as % of price. Volatility, not direction. |
-| Earnings | Days until the next earnings date. Dates can be estimates; verify on investor relations. Deliberately outside the score. |
-| Full view | RSI (Wilder 14), distance to SMA20/50, position in the prior 20-day range, avg dollar volume, volume vs average |
+| Vol vs avg | Latest session's volume against the 20 before it. Not shown while the market is open: a partial day is not a reading. |
+| Earnings | Days until the next earnings date. Dates can be estimates; verify on investor relations. |
+| Full view | distance to SMA20/50, position in the prior 20-day range, avg dollar volume, 1/5/20-day change, RS vs QQQ |
+
+Rows are sorted by label and then alphabetically. **This is not a ranking.**
 
 **Prior 20-day high/low** use sessions t−20 to t−1 and exclude today, so today's bar cannot be its own breakout level.
 
@@ -56,19 +60,24 @@ takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit 
 - **Extended**: more than 2.5 ATR above SMA20, or RSI > 75.
 - **Heavy selling**: volume ≥ 1.5× average with a close in the bottom 40% of the day's range and below the prior close.
 
-### Breakout alignment score
+### Why there is no score (v3.0, Oct 28 2026)
 
-| Bucket | Max | Measures |
-|---|---|---|
-| Trend | 25 | Price > SMA20 (8), SMA20 > SMA50 (8), SMA20 rising (5), SMA50 rising (4) |
-| Relative strength | 25 | RS vs bench in ATR units, full 15 at 2.5 ATR; benchmark regime 10: above its SMA50 (6), that SMA50 rising (4). Missing benchmark → score withheld. |
-| Setup | 20 | Position in the prior range 60%→100% (0→10), within 1 ATR of the prior high (5), closed above it (5) |
-| Volume | 15 | Relative volume 0.8×→2.0× (0→15), only if the close is in the upper half of the day's range and above the prior close; otherwise 0 |
-| Momentum | 15 | RSI ramps 40→55 (0→8), flat 55–68, ramps 68→78 (8→0); last 5 days positive (4); last 5 days stronger than the 5 before and positive (3) |
+Rules v2.1 had a 0–100 "breakout alignment" score built from five buckets (trend, relative
+strength, setup, volume, momentum). It was frozen and then tested with `replay.py` on this
+watchlist over Jan 2022–Oct 2026, with the last 12 months held out and opened once. Picking the
+top 3 by score, buying at the next open and holding 5 sessions after 0.2% costs did **no better
+than picking the top 3 by relative strength alone** (−0.49% per trade behind it in development,
+−0.06% in the holdout), and in the holdout none of score, RS or momentum beat simply holding the
+benchmark. The rule agreed before the test was: if the score can't beat RS alone, drop it. So it
+was dropped. The full tables are in `scorecard_v2.1.md`; the code that produced them is git tag
+`rules-v2.1`.
 
-75+ strong, 55–74 moderate, 35–54 mixed, under 35 weak. An 80 means the rules are well matched today, not that there is an 80% chance of a rise.
+What remains is a filter: labels and flags that tell you which charts match a written pattern
+today. They did not show a measurable edge either, so treat them as a reading aid, not a signal.
+Adding indicators to "fix" this on a 20-name universe would be data mining; see Roadmap for
+what an honest next test looks like.
 
-### Changes from v2 (after review)
+### Changes from v2 to v2.1 (history; the score itself is gone in v3.0)
 
 - Relative strength no longer counts QQQ and SMH twice; one benchmark per ticker, volatility-normalized, plus a benchmark-regime term.
 - Missing benchmark data withholds the score instead of awarding neutral points.
@@ -103,25 +112,25 @@ what happened next at 1/3/5/10 sessions:
 - `ex_net_N` next open→close+N minus 0.2% round-trip cost, **executable**;
 - `rel_*` the same minus the benchmark (SMH/QQQ) over the stock's own dates; `mae_N` worst low while held.
 
-`scorecard.md` compares top-3 by score vs top-3 by RS vs top-3 by 5-day momentum on the same names
-and days, with a time-blocked bootstrap (overlapping trades), rank IC, distinct-episode results per
-setup, score buckets, and stability by year and QQQ regime. The pass/fail rule is written in
-`replay.verdict()` and was fixed before the first run. Bars are cached in `replay_data/` and results
-in `replay_results.csv`; both are gitignored (personal research copy of Yahoo data).
+`scorecard.md` compares top-3 by RS vs top-3 by 5-day momentum vs all names on the same days,
+with a time-blocked bootstrap (overlapping trades), rank IC, distinct-episode results per setup,
+and stability by year and QQQ regime. Bars are cached in `replay_data/` and results in
+`replay_results.csv`; both are gitignored (personal research copy of Yahoo data), as is the
+regenerated `scorecard.md`.
 
-**Result (Oct 27–28, 2026).** Development period Jan 2022–Oct 2025: the score does **not** beat
-RS-alone, −0.49% per 5-day trade vs bench (90% interval −0.84 to −0.15), behind in 3 of 4 years.
-Holdout Oct 2025–Oct 2026, opened once: score −0.04%, RS +0.02%, momentum −0.23%, all names
-−0.23%; every interval straddles zero and RS's development edge did not repeat. Breakout labels
-underperformed Downtrend in the holdout. Rank IC ≈ 0 for all three. **Conclusion: on this
-universe with 5-day holds, none of the rankings has a measurable edge after costs.** Per the
-agreed rule the composite score is dropped as a ranking signal; the indicators and labels stay as
-chart-reading aids only. The 20-name universe was chosen in 2026 (survivorship), so even these
-flat numbers are optimistic.
+**The v2.1 test (Oct 27–28, 2026)** is frozen in `scorecard_v2.1.md` and reproducible from git
+tag `rules-v2.1`. Development period Jan 2022–Oct 2025: the score did **not** beat RS-alone,
+−0.49% per 5-day trade vs bench (90% interval −0.84 to −0.15), behind in 3 of 4 years. Holdout
+Oct 2025–Oct 2026, opened once: score −0.04%, RS +0.02%, momentum −0.23%, all names −0.23%;
+every interval straddled zero and RS's development edge did not repeat. Breakout labels
+underperformed Downtrend in the holdout. Rank IC ≈ 0 for all three. **On this universe with 5-day
+holds, nothing tested has a measurable edge after costs.** The 20-name universe was chosen in 2026
+(survivorship), so even these flat numbers are optimistic.
 
 ## Versions
 
-- **rules** change only when the strategy changes (currently v2.1, frozen for validation).
+- **rules** change only when the strategy changes (currently v3.0: labels and flags, no score.
+  v2.1 was frozen, tested, and is kept as git tag `rules-v2.1`).
 - **engine** changes when a calculation or data-handling defect is fixed (currently v2.1.1).
   Fixes can move numbers slightly; older snapshots keep their version stamp.
 
@@ -136,9 +145,11 @@ pytest -q
 Covers: benchmark returns aligned by date when a stock misses a session; flat and rising-only
 series (no NaN); RSI seeded like TradingView's RMA; bad OHLC bars dropped and flagged; all
 downloads failing gives a clear error and writes nothing; repeated runs add no duplicate
-snapshots; incomplete benchmark withholds the score; intraday marks volume n/a and the score
-provisional (never lower); breakout label just below / at / above the prior high; and
-Python vs JavaScript parity on a shared fixture (labels exact, components within 0.5).
+snapshots; incomplete benchmark flags the row and leaves RS empty; intraday hides the partial
+volume reading and holds the heavy-selling flag until the close; no score, alignment or component
+field anywhere in the output or the snapshot; breakout label just below / at / above the prior
+high; and Python vs JavaScript parity on a shared fixture (labels and flags exact, RSI/ATR/RS/
+volume within rounding).
 Replay (`tests/test_replay.py`): changing any bar after t, stock or benchmark, leaves day t
 unchanged (lookahead guard); a replay row equals a direct `analyze` call; hand-computed forward
 returns, benchmark legs aligned by date; distinct episodes; same eligible universe for every
@@ -158,10 +169,14 @@ ranking; deterministic bootstrap; 12-month holdout split.
 
 ## Roadmap
 
-1. ~~Historical replay engine~~ — built (`replay.py`, see above). First result: the score does not beat RS alone on the development period. Holdout still unopened.
-2. Keep the live daily snapshots as a separate forward test; no trading during the observation period.
-3. Trend Pullback score as a second strategy; conservative entry/stop/size calculator.
-4. Scalp mode (gap %, time-of-day relative volume, VWAP, opening range) — needs an intraday feed, not the free tier.
+1. ~~Historical replay engine~~ — built. ~~Test the v2.1 score~~ — done, score removed (v3.0).
+2. Keep the live daily snapshots as a separate forward test; no trading on these labels as signals.
+3. Conservative entry/stop/size calculator (0.25–0.5% risk, stop from chart structure, ATR as a
+   sanity check). This is the part of the plan that protects money whether or not any signal works.
+4. An honest second replay, decided in advance: a wider universe (not hand-picked survivors) and
+   longer holds (20–60 sessions, where momentum has published evidence). No new indicators until
+   that test design is written down.
+5. Scalp mode (gap %, time-of-day relative volume, VWAP, opening range) — needs an intraday feed, not the free tier. Deferred.
 
 ## Notes
 
