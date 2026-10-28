@@ -109,9 +109,15 @@ setup, score buckets, and stability by year and QQQ regime. The pass/fail rule i
 `replay.verdict()` and was fixed before the first run. Bars are cached in `replay_data/` and results
 in `replay_results.csv`; both are gitignored (personal research copy of Yahoo data).
 
-**First run (Oct 27, 2026, Jan 2022–Oct 2025, holdout unopened):** the score does **not** beat
-RS-alone: −0.49% per 5-day trade vs bench (90% interval −0.84 to −0.15), behind in 3 of 4 years.
-Per the agreed rule the composite is a candidate to drop; the indicators stay.
+**Result (Oct 27–28, 2026).** Development period Jan 2022–Oct 2025: the score does **not** beat
+RS-alone, −0.49% per 5-day trade vs bench (90% interval −0.84 to −0.15), behind in 3 of 4 years.
+Holdout Oct 2025–Oct 2026, opened once: score −0.04%, RS +0.02%, momentum −0.23%, all names
+−0.23%; every interval straddles zero and RS's development edge did not repeat. Breakout labels
+underperformed Downtrend in the holdout. Rank IC ≈ 0 for all three. **Conclusion: on this
+universe with 5-day holds, none of the rankings has a measurable edge after costs.** Per the
+agreed rule the composite score is dropped as a ranking signal; the indicators and labels stay as
+chart-reading aids only. The 20-name universe was chosen in 2026 (survivorship), so even these
+flat numbers are optimistic.
 
 ## Versions
 

@@ -66,10 +66,15 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 First run, development period Jan 2022–Oct 13 2025, 20 tickers, 18,169 ticker-days: **the score
 does NOT beat RS-alone** (−0.49%/5-day trade vs bench, 90% CI −0.84 to −0.15, behind 3 of 4 years).
 Rank IC ≈ 0 for score, RS and momentum alike. RS/momentum top-3 ≈ +0.47% but their CIs touch 0.
-Holdout (Oct 13 2025 →) is **unopened**: run `python replay.py --holdout` once, only when Clark
-decides. Pending Clark's call on the agreed rule: drop the composite score, keep the indicators.
-Replay uses a 126-bar window per day to match the live 6-month download. Verdict rule is in
-`replay.verdict()`; do not loosen it after seeing results.
+**Holdout OPENED Oct 28, 2026** (Clark: "do what gives the best earnings"): score −0.04%, RS +0.02%,
+momentum −0.23%, all names −0.23%; all CIs straddle 0. RS's development edge did not repeat.
+Breakout confirmed/watch episodes did worse than Downtrend in the holdout. **No ranking tested has
+an edge on this universe at 5-day holds.** Decision per the pre-agreed rule: the composite score is
+dropped as a signal (implementation pending: remove/relabel score on page + CLI, bump rules to v3,
+keep labels and flags as chart aids). Do not add indicators to "fix" this: 20 survivor names ×
+one more comparison is data mining. Honest next steps are a wider universe, longer horizons, and the
+risk calculator. Replay uses a 126-bar window per day to match the live 6-month download. Verdict
+rule is in `replay.verdict()`; it was not changed after seeing results.
 
 The original plan, kept for reference:
 
