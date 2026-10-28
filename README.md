@@ -88,6 +88,31 @@ Rows carry the rules and engine versions, source, `final` vs `intraday`, the set
 all five score components and the raw inputs needed to recompute the score. Existing rows are
 never rewritten. The `history.csv` from engine v2 is left as it was.
 
+## Historical replay
+
+```bash
+python replay.py              # development period; the last 12 months stay hidden
+python replay.py --holdout    # evaluate the holdout too: once, at the very end
+```
+
+For every past session t it slices the stock **and** benchmark bars to t, runs `boso.analyze`
+with the same ~6-month window the live screener uses (`earnings=None`, `now=None`), and records
+what happened next at 1/3/5/10 sessions:
+
+- `cc_N` close→close, **descriptive** (you could not buy at that close);
+- `ex_net_N` next open→close+N minus 0.2% round-trip cost, **executable**;
+- `rel_*` the same minus the benchmark (SMH/QQQ) over the stock's own dates; `mae_N` worst low while held.
+
+`scorecard.md` compares top-3 by score vs top-3 by RS vs top-3 by 5-day momentum on the same names
+and days, with a time-blocked bootstrap (overlapping trades), rank IC, distinct-episode results per
+setup, score buckets, and stability by year and QQQ regime. The pass/fail rule is written in
+`replay.verdict()` and was fixed before the first run. Bars are cached in `replay_data/` and results
+in `replay_results.csv`; both are gitignored (personal research copy of Yahoo data).
+
+**First run (Oct 27, 2026, Jan 2022–Oct 2025, holdout unopened):** the score does **not** beat
+RS-alone: −0.49% per 5-day trade vs bench (90% interval −0.84 to −0.15), behind in 3 of 4 years.
+Per the agreed rule the composite is a candidate to drop; the indicators stay.
+
 ## Versions
 
 - **rules** change only when the strategy changes (currently v2.1, frozen for validation).
@@ -108,6 +133,10 @@ downloads failing gives a clear error and writes nothing; repeated runs add no d
 snapshots; incomplete benchmark withholds the score; intraday marks volume n/a and the score
 provisional (never lower); breakout label just below / at / above the prior high; and
 Python vs JavaScript parity on a shared fixture (labels exact, components within 0.5).
+Replay (`tests/test_replay.py`): changing any bar after t, stock or benchmark, leaves day t
+unchanged (lookahead guard); a replay row equals a direct `analyze` call; hand-computed forward
+returns, benchmark legs aligned by date; distinct episodes; same eligible universe for every
+ranking; deterministic bootstrap; 12-month holdout split.
 
 ### Engine v2.1.1 changes (no rules changes)
 
@@ -123,7 +152,7 @@ Python vs JavaScript parity on a shared fixture (labels exact, components within
 
 ## Roadmap
 
-1. Historical replay engine (Python, 3–5 years of bars): run the frozen v2.1 rules on every past date, entry at the next open with a cost assumption, count distinct episodes, and produce the scorecard: 5-day benchmark-relative return for top-3 by score vs top-3 by RS vs by 5-day momentum on the same eligible universe; max adverse excursion; stability across periods. If the score can't beat RS alone, it goes and the indicators stay.
+1. ~~Historical replay engine~~ — built (`replay.py`, see above). First result: the score does not beat RS alone on the development period. Holdout still unopened.
 2. Keep the live daily snapshots as a separate forward test; no trading during the observation period.
 3. Trend Pullback score as a second strategy; conservative entry/stop/size calculator.
 4. Scalp mode (gap %, time-of-day relative volume, VWAP, opening range) — needs an intraday feed, not the free tier.

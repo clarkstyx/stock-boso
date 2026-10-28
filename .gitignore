@@ -8,3 +8,5 @@ screener_results.xlsx
 history.csv
 snapshots.csv
 last_run.log
+replay_results.csv
+replay_data/

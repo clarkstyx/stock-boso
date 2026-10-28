@@ -19,7 +19,8 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 | `boso.py` | The engine. Pure logic, no network, no clock when `now=None`. Everything else calls this. |
 | `stock_screener.py` | CLI. Yahoo Finance via yfinance → `boso.run_screen()` → CSV/XLSX + `snapshots.csv`. |
 | `index.html` | Single-page web version. Same rules in JavaScript. Demo data by default; live via a Twelve Data key in the browser. Exports `window.StockBoso` for parity tests. Hosted on GitHub Pages. |
-| `tests/` | 17 pytest cases incl. Python↔JS parity on `tests/fixtures/bars.json`. `pytest -q` must stay green. |
+| `replay.py` | Historical replay of v2.1 → `replay_results.csv` + `scorecard.md`. |
+| `tests/` | 28 pytest cases (17 engine + 11 replay) incl. Python↔JS parity on `tests/fixtures/bars.json`. `pytest -q` must stay green. |
 | `setup_windows_task.bat` | One-click Windows setup: installs deps, test run, schedules weekdays 15:35 Regina (after US close in EDT and EST). |
 | `snapshots.csv` | **Research record.** One row per ticker per bar date per rules+engine version per session status. Append-only, idempotent, never rewrite. Gitignored. |
 | `history.csv` | Old engine-v2 snapshot format. Leave untouched. |
@@ -60,9 +61,17 @@ point of the next phase is to test whether v2.1 adds value; changing it first wo
 - Known limits: Twelve Data free tier (8 credits/min) throttles the web page; the Claude artifact copy
   of the page cannot fetch live data (sandbox), only the GitHub Pages copy can.
 
-## Next milestone: historical replay engine (approved plan, not started)
+## Historical replay engine — BUILT Oct 27, 2026 (`replay.py`, `tests/test_replay.py`, `scorecard.md`)
 
-Build `replay.py` on top of `boso.analyze(now=None)`:
+First run, development period Jan 2022–Oct 13 2025, 20 tickers, 18,169 ticker-days: **the score
+does NOT beat RS-alone** (−0.49%/5-day trade vs bench, 90% CI −0.84 to −0.15, behind 3 of 4 years).
+Rank IC ≈ 0 for score, RS and momentum alike. RS/momentum top-3 ≈ +0.47% but their CIs touch 0.
+Holdout (Oct 13 2025 →) is **unopened**: run `python replay.py --holdout` once, only when Clark
+decides. Pending Clark's call on the agreed rule: drop the composite score, keep the indicators.
+Replay uses a 126-bar window per day to match the live 6-month download. Verdict rule is in
+`replay.verdict()`; do not loosen it after seeing results.
+
+The original plan, kept for reference:
 
 1. Pull 3–5 years of daily bars per ticker + QQQ + SMH via yfinance (`auto_adjust=True`, explicit).
 2. For each date t (after a 60-bar warm-up, stopping 10 sessions before the end), slice bars `[:t]`
