@@ -49,6 +49,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem Laptop-friendly settings: run on battery, and catch up a run missed while asleep or off.
+powershell -NoProfile -Command "$s = (Get-ScheduledTask -TaskName 'Stock Boso daily screen').Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.StartWhenAvailable = $true; $s.ExecutionTimeLimit = 'PT1H'; Set-ScheduledTask -TaskName 'Stock Boso daily screen' -Settings $s | Out-Null"
+
 echo.
 echo Done. The screener runs every weekday at 3:35 PM. Each run:
 echo   - updates screener_results.csv and .xlsx
