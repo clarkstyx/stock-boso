@@ -88,6 +88,19 @@ canvas.cv-price{width:100%;height:300px;display:block} canvas.cv-rsi{width:100%;
 .legend{font-size:12px;color:var(--muted);display:grid;gap:4px;max-width:78ch}
 .legend b{color:var(--fg);font-weight:600}
 details summary{cursor:pointer;color:var(--accent);font-size:13px}
+.calc{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:12px;display:grid;gap:10px}
+.calcgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.calcgrid{grid-template-columns:1fr}}
+.calcin{display:grid;gap:9px;align-content:start;min-width:0}
+.calcin label{font-size:12px;color:var(--muted);display:grid;gap:4px}
+.calcin input{font:14px var(--mono);padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);width:100%}
+.calcin input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.levels{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--muted);align-items:center}
+.levels button{padding:3px 8px;font:12px var(--mono)}
+.calcout{display:grid;gap:8px;align-content:start;min-width:0}
+.big{font-family:var(--mono);font-size:30px;font-weight:600;line-height:1.1}
+.big small{font-size:13px;font-weight:400;color:var(--muted);display:block;margin-top:4px}
+.fine{font-size:12px;color:var(--muted);margin:0;max-width:100ch}
 footer{font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
 footer a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -132,7 +145,7 @@ footer a{color:var(--accent)}
           <li><b>Is the data current and the setup confirmed?</b> Green LIVE badge, bar date is the last trading day. "No setup", "Downtrend" or a "watch" label that hasn't triggered means wait.</li>
           <li><b>Earnings and news?</b> More than 7 days from earnings, and you've read today's news on it.</li>
           <li><b>What price proves you wrong?</b> Pick the stop from the chart (below the pullback low, below the breakout level). The notes show the ATR so you can check the distance is reasonable. A stop order does not guarantee that price; gaps happen.</li>
-          <li><b>How many shares?</b> While learning, risk 0.25–0.5% of your account per trade. Shares = risk amount ÷ (entry − stop). Example: $5,000 account, 0.5% = $25 risk; stop $12 below entry → 2 shares. Round down.</li>
+          <li><b>How many shares?</b> While learning, risk 0.25–0.5% of your account per trade. Shares = risk amount ÷ (entry − stop). Example: $5,000 account, 0.5% = $25 risk; stop $12 below entry → 2 shares. Round down. The <b>Position size</b> calculator below does this for you; open a ticker and click "Size a trade" to fill in its price and ATR.</li>
           <li><b>Already holding similar stocks?</b> Five small tech trades are one big tech bet. Could you handle all of them gapping down together overnight?</li>
         </ol>
         <h3>What it can't do</h3>
@@ -194,7 +207,7 @@ footer a{color:var(--accent)}
   <section id="detail" class="detail" hidden>
     <div class="dhead">
       <div><span id="d-title" class="dtitle">—</span> <span id="d-sub" class="sub"></span></div>
-      <button id="d-close" class="ghost">Close</button>
+      <div><button id="d-size" class="ghost">Size a trade</button> <button id="d-close" class="ghost">Close</button></div>
     </div>
     <div class="dgrid">
       <div class="charts">
@@ -204,6 +217,25 @@ footer a{color:var(--accent)}
       </div>
       <ul id="d-notes" class="notes"></ul>
     </div>
+  </section>
+
+  <section id="calc" class="calc">
+    <div><span class="dtitle">Position size</span> <span id="k-for" class="sub">How many shares, so that hitting your stop costs only what you chose to lose.</span></div>
+    <div class="calcgrid">
+      <div class="calcin">
+        <label>Account size ($)<input id="k-acct" type="number" min="0" step="any" inputmode="decimal" placeholder="e.g. 5000"></label>
+        <label>Risk per trade (% of account). While learning: 0.25–0.5<input id="k-risk" type="number" min="0" step="0.05" inputmode="decimal" value="0.5"></label>
+        <label>Entry price ($)<input id="k-entry" type="number" min="0" step="any" inputmode="decimal"></label>
+        <label>Stop price ($): the price that proves the idea wrong<input id="k-stop" type="number" min="0" step="any" inputmode="decimal"></label>
+        <div id="k-levels" class="levels"></div>
+        <label>ATR ($, optional): checks the stop distance against a normal day's move<input id="k-atr" type="number" min="0" step="any" inputmode="decimal"></label>
+      </div>
+      <div class="calcout">
+        <div id="k-big" class="big">–</div>
+        <ul id="k-notes" class="notes"></ul>
+      </div>
+    </div>
+    <p class="fine">Long positions in a cash account only (no margin, no short selling). Fees are not included. A stop order does not guarantee your price: if the stock opens below your stop you lose more, which is why the gap line is shown. This sizes a trade you have already chosen. It does not suggest what to buy, where to enter or where to put the stop. Your inputs stay in this browser.</p>
   </section>
 
   <details>
@@ -322,8 +354,29 @@ footer a{color:var(--accent)}
       spark:bars.slice(-20).map(b=>b.c),lastDate:last.d,bars,
       raw:{sma20,sma50,sma20prev,sma50prev,atr,ph,pl,distSma20,up,closeLoc,prev5,rsNorm,B,prevC,vrRaw:vr,o:last.o,h:last.h,l:last.l,v:last.v}};
   }
+  // ---------- position size (mirror of boso.position_size; tests/test_sizing.py checks they agree) ----------
+  // You bring the entry and the stop. Long only, cash only. Never suggests a trade.
+  const LEARN_MAX_RISK=0.5, STOP_TIGHT_ATR=1, STOP_WIDE_ATR=3, FLOOR_EPS=1e-9;
+  const isPos=x=>typeof x==='number'&&Number.isFinite(x)&&x>0;
+  function positionSize(account,riskPct,entry,stop,atr){
+    if(!(isPos(account)&&isPos(riskPct)&&isPos(entry)&&isPos(stop))) return {ok:false,error:'missing'};
+    if(riskPct>100) return {ok:false,error:'risk_pct_range'};
+    if(stop>=entry) return {ok:false,error:'stop_not_below_entry'};
+    atr=isPos(atr)?atr:null;
+    const budget=account*riskPct/100, rps=entry-stop;
+    const byRisk=Math.floor(budget/rps+FLOOR_EPS), byCash=Math.floor(account/entry+FLOOR_EPS), shares=Math.min(byRisk,byCash);
+    const stopAtr=atr?rps/atr:null, w=[];
+    if(riskPct>LEARN_MAX_RISK) w.push('risk_high');
+    if(shares===0) w.push('zero_shares'); else if(byCash<byRisk) w.push('cash_capped');
+    if(stopAtr!=null&&stopAtr<STOP_TIGHT_ATR) w.push('stop_tight');
+    if(stopAtr!=null&&stopAtr>STOP_WIDE_ATR) w.push('stop_wide');
+    return {ok:true,risk_budget:budget,risk_per_share:rps,shares_by_risk:byRisk,shares,
+      position_value:shares*entry,position_pct:shares*entry/account*100,actual_risk:shares*rps,actual_risk_pct:shares*rps/account*100,
+      stop_pct:rps/entry*100,stop_atr:stopAtr,gap_loss:atr?shares*(rps+atr):null,warnings:w};
+  }
+
   // exported for tests/parity.js
-  window.StockBoso={analyze,benchInfo,rsiWilder,atrWilder,RULES,ENGINE};
+  window.StockBoso={analyze,benchInfo,rsiWilder,atrWilder,positionSize,RULES,ENGINE};
 
   // ---------- demo data ----------
   function demoBars(t){
@@ -491,6 +544,47 @@ footer a{color:var(--accent)}
   }
   rowsEl.addEventListener('click',e=>{ const td=e.target.closest('td.t'); if(td) showDetail(td.textContent.trim()); });
   $('d-close').addEventListener('click',()=>{$('detail').hidden=true;});
+
+  // ---------- position size panel ----------
+  const money=x=>'$'+x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const num=id=>{ const v=$(id).value; return v===''?NaN:+v; };
+  function renderCalc(){
+    const acct=num('k-acct'), risk=num('k-risk'), entry=num('k-entry'), stop=num('k-stop'), atr=num('k-atr');
+    try{ localStorage.setItem('sb_calc',JSON.stringify({acct:$('k-acct').value,risk:$('k-risk').value})); }catch(e){}
+    const s=positionSize(acct,risk,entry,stop,atr), li=(cls,t,n)=>'<li class="'+cls+'">'+t+(n?'<span class="n">'+n+'</span>':'')+'</li>';
+    if(!s.ok){
+      $('k-big').textContent='–';
+      $('k-notes').innerHTML=s.error==='stop_not_below_entry'?li('bad','The stop must be below the entry. This calculator is for buying (long positions) only.')
+        :s.error==='risk_pct_range'?li('bad','Risk per trade must be more than 0% and at most 100%. While learning, use 0.25–0.5%.')
+        :li('','Fill in account size, risk %, entry and stop. The stop comes from the chart: below the pullback low, or below the breakout level.');
+      return;
+    }
+    $('k-big').innerHTML=s.shares+' share'+(s.shares===1?'':'s')+'<small>at most, worth '+money(s.position_value)+' ('+s.position_pct.toFixed(1)+'% of the account)</small>';
+    const out=[];
+    out.push(li('','If the stop is hit: lose about '+money(s.actual_risk)+' ('+s.actual_risk_pct.toFixed(2)+'% of the account).',
+      'budget '+money(s.risk_budget)+' = '+risk+'% of '+money(acct)+' · risk per share '+money(s.risk_per_share)+' ('+s.stop_pct.toFixed(1)+'% below entry'+(s.stop_atr!=null?', '+s.stop_atr.toFixed(1)+' ATR':'')+')'));
+    if(s.gap_loss!=null&&s.shares>0) out.push(li('mid','If it opens 1 ATR below your stop (a gap): lose about '+money(s.gap_loss)+' ('+(s.gap_loss/acct*100).toFixed(2)+'%). Stops are not guaranteed fills.'));
+    const ten=r=>((1-Math.pow(1-r/100,10))*100).toFixed(1);
+    if(s.warnings.includes('risk_high')) out.push(li('bad','You are risking '+risk+'% per trade. Ten losses in a row (it happens) would cost about '+ten(risk)+'% of the account; at 0.5% it would be about '+ten(0.5)+'%. While learning, stay at 0.25–0.5%.'));
+    if(s.warnings.includes('zero_shares')) out.push(li('bad','Even 1 share risks '+money(s.risk_per_share)+', more than your '+money(s.risk_budget)+' budget. Skip this one or find a closer stop on the chart. Do not raise the risk % to make it fit.'));
+    if(s.warnings.includes('cash_capped')) out.push(li('mid','Your risk budget allows '+s.shares_by_risk+' shares, but the account can only pay for '+s.shares+'. Size is limited by cash (no margin), so you risk less than you planned.'));
+    if(s.warnings.includes('stop_tight')) out.push(li('bad','The stop is only '+s.stop_atr.toFixed(1)+' ATR away, less than one normal day\'s move. Ordinary noise could hit it. Check that it sits at a real chart level.'));
+    if(s.warnings.includes('stop_wide')) out.push(li('mid','The stop is '+s.stop_atr.toFixed(1)+' ATR away. Fine if the chart says so, but the position is small and the trade needs a big move to pay off.'));
+    $('k-notes').innerHTML=out.join('');
+  }
+  function sizeFrom(r){
+    const v=r.raw, demo=srcEl.className.includes('demo');
+    $('k-entry').value=r.price.toFixed(2); $('k-atr').value=v.atr>0?v.atr.toFixed(2):''; $('k-stop').value='';
+    $('k-for').textContent=r.t+' · last close '+r.price.toFixed(2)+' on '+r.lastDate+(demo?' · DEMO DATA, generated prices':'')+'. Entry is pre-filled with the last close; change it to your actual price.';
+    const lv=[['prior 20-day low',v.pl],['SMA50',v.sma50],['SMA20',v.sma20],['breakout level',v.ph]].filter(([,x])=>x<r.price).sort((a,b)=>b[1]-a[1]);
+    $('k-levels').innerHTML=lv.length?'Chart levels below the price (reference only, you pick): '+lv.map(([n,x])=>'<button class="ghost" data-v="'+x.toFixed(2)+'">'+n+' '+x.toFixed(2)+'</button>').join(''):'';
+    renderCalc(); $('calc').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  $('d-size').addEventListener('click',()=>{ const r=rows.find(x=>x.t===$('d-title').textContent); if(r) sizeFrom(r); });
+  $('k-levels').addEventListener('click',e=>{ const b=e.target.closest('button[data-v]'); if(b){ $('k-stop').value=b.dataset.v; renderCalc(); } });
+  ['k-acct','k-risk','k-entry','k-stop','k-atr'].forEach(id=>$(id).addEventListener('input',renderCalc));
+  try{ const c=JSON.parse(localStorage.getItem('sb_calc')||'null'); if(c){ if(c.acct) $('k-acct').value=c.acct; if(c.risk) $('k-risk').value=c.risk; } }catch(e){}
+  renderCalc();
   window.addEventListener('resize',()=>{ if(!$('detail').hidden){ const r=rows.find(x=>x.t===$('d-title').textContent); if(r) drawChart(r);} });
 
   // ---------- status, session, snapshots ----------

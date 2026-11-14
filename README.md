@@ -89,6 +89,24 @@ what an honest next test looks like.
 - Trend bucket replaces the redundant price > SMA50 with SMA50 slope; RSI scoring is a ramp, not a cliff.
 - Beginner checklist: 0.25–0.5% risk while learning, stop from chart structure (ATR as a sanity check), correlated-exposure question, stop orders don't guarantee the fill.
 
+## Position size calculator (web page, and `boso.position_size()` in Python)
+
+Answers one question: **how many shares can I buy so that, if my stop is hit, I lose only what I
+chose to risk?** You bring the entry and the stop; it never suggests either, or what to buy.
+
+- Inputs: account size, risk per trade (% of account, default 0.5), entry, stop, ATR (optional).
+- Shares = floor(account × risk% ÷ (entry − stop)), and never more than the cash can pay for (no
+  margin). Always rounded down. Long positions only; a stop at or above the entry is refused.
+- Shows the loss if the stop is hit, and the loss if the stock **opens 1 ATR below the stop**,
+  because stop orders are not guaranteed fills.
+- Warnings (notes, not grades): risk above the 0.5% learning limit (with what ten losses in a row
+  would cost), 1 share already over budget (skip it or find a closer stop; don't raise the risk %),
+  size limited by cash, stop under 1 ATR away (ordinary noise can hit it), stop over 3 ATR away.
+- On the page, open a ticker and click **Size a trade**: entry is pre-filled with the last close,
+  ATR with the 14-day ATR, and the chart levels below the price (prior 20-day low, SMA20, SMA50,
+  breakout level) appear as buttons for reference. Account size and risk % stay in your browser.
+- Python and JavaScript are checked against each other on `tests/fixtures/sizing_cases.json`.
+
 ## Snapshots / forward tracking
 
 Each run appends to `snapshots.csv` (Python) or browser storage (web, "Copy snapshot history").
@@ -154,6 +172,10 @@ Replay (`tests/test_replay.py`): changing any bar after t, stock or benchmark, l
 unchanged (lookahead guard); a replay row equals a direct `analyze` call; hand-computed forward
 returns, benchmark legs aligned by date; distinct episodes; same eligible universe for every
 ranking; deterministic bootstrap; 12-month holdout split.
+Sizing (`tests/test_sizing.py`): the $5,000 / 0.5% / $12-stop example gives 2 shares; floating-point
+noise never loses a share (30 ÷ 0.10 = 300, not 299); always rounds down; zero-share, cash-cap,
+risk-above-0.5% and tight/wide-stop warnings; bad inputs and stops at or above entry are refused;
+no signal-like field in the output; Python vs JavaScript on 12 shared cases.
 
 ### Engine v2.1.1 changes (no rules changes)
 
@@ -171,8 +193,9 @@ ranking; deterministic bootstrap; 12-month holdout split.
 
 1. ~~Historical replay engine~~ — built. ~~Test the v2.1 score~~ — done, score removed (v3.0).
 2. Keep the live daily snapshots as a separate forward test; no trading on these labels as signals.
-3. Conservative entry/stop/size calculator (0.25–0.5% risk, stop from chart structure, ATR as a
-   sanity check). This is the part of the plan that protects money whether or not any signal works.
+3. ~~Conservative position size calculator~~ — built Nov 13, 2026 (0.25–0.5% risk, stop from
+   chart structure, ATR as a sanity check). This is the part of the plan that protects money
+   whether or not any signal works.
 4. An honest second replay, decided in advance: a wider universe (not hand-picked survivors) and
    longer holds (20–60 sessions, where momentum has published evidence). No new indicators until
    that test design is written down.

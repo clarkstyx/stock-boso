@@ -26,4 +26,7 @@ for (const sym of ['ACME', 'UPUP']) {
   const r = api.analyze(sym, fx[sym], benches, null, null);   // now=null -> treat as completed session
   out[sym] = { setup: r.setup, flags: r.flags, rsi: r.rsi, atr: r.atr, rsB: r.rsB, vr: r.vr };
 }
+// Position-size calculator on the shared cases (checked by tests/test_sizing.py)
+const cases = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'sizing_cases.json'), 'utf8'));
+out._sizing = cases.map(c => api.positionSize(c.account, c.risk_pct, c.entry, c.stop, c.atr));
 process.stdout.write(JSON.stringify(out));

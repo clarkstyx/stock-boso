@@ -23,7 +23,7 @@ written test design agreed first; on 20 survivor names that is data mining.
 | `index.html` | Single-page web version. Same rules in JavaScript. Demo data by default; live via a Twelve Data key in the browser. Exports `window.StockBoso` for parity tests. Hosted on GitHub Pages. |
 | `replay.py` | Historical replay: slices bars to each past day, records forward returns, compares RS / momentum / all-names. Writes `replay_results.csv` + `scorecard.md` (both gitignored). |
 | `scorecard_v2.1.md` | **Frozen record** of the v2.1 score test. Do not regenerate or edit. Reproduce from tag `rules-v2.1`. |
-| `tests/` | 28 pytest cases (17 engine + 11 replay) incl. Python↔JS parity on `tests/fixtures/bars.json`. `pytest -q` must stay green. |
+| `tests/` | 54 pytest cases (engine, replay, sizing) incl. Python↔JS parity on `tests/fixtures/bars.json` and `tests/fixtures/sizing_cases.json`. `pytest -q` must stay green. |
 | `setup_windows_task.bat` | One-click Windows setup: installs deps, test run, schedules weekdays 15:35 Regina (after US close in EDT and EST). |
 | `snapshots.csv` | **Research record.** One row per ticker per bar date per rules+engine version per session status. Append-only, idempotent, never rewrite. Gitignored. |
 | `history.csv` | Old engine-v2 snapshot format. Leave untouched. |
@@ -109,6 +109,13 @@ OHLCV data (data-rights issue). Those are explicitly deferred.
 
 After the replay: a separate Trend Pullback score, then a conservative entry/stop/size calculator
 (0.25–0.5% risk while learning, stop from chart structure, ATR as sanity check).
+
+**Position size calculator BUILT Nov 13, 2026**: `boso.position_size()` + `positionSize()` in
+`index.html` (exported on `window.StockBoso`), "Position size" panel on the page, "Size a trade"
+button in the ticker detail panel. Long only, cash only, floor with a 1e-9 epsilon. It sizes a
+trade the user chose; it must never suggest an entry, stop or direction (test enforces no signal
+fields). Not a rules or engine change, so no version bump. Clark keeps asking for buy/sell signals;
+the evidence says no, so point him here and at the pre-registered wider replay instead.
 
 ## Working conventions
 

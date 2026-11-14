@@ -322,3 +322,64 @@ def run_screen(watchlist: list[str], fetch: Callable[[str], pd.DataFrame | None]
         warnings.append(f"xlsx not written: {e}")
     written = write_snapshots(rows, outdir / "snapshots.csv", source=snapshot_source)
     return {"rows": rows, "table": table, "warnings": warnings, "error": None, "snapshots_written": written}
+
+
+# ---------------------------------------------------------------------------
+# Position size: how many shares so that a stop-out loses only what you chose to risk.
+# You bring the entry and the stop (from the chart). This never suggests either, and never a
+# direction. Long positions, cash only (no margin). Mirrored as positionSize() in index.html.
+# ---------------------------------------------------------------------------
+LEARNING_MAX_RISK_PCT = 0.5     # 0.25-0.5% per trade while learning
+STOP_TIGHT_ATR = 1.0            # stop closer than one day's typical range: noise can hit it
+STOP_WIDE_ATR = 3.0             # stop more than three days' typical range away
+_FLOOR_EPS = 1e-9               # 30 / (1.10 - 1.00) is 299.99999... in floating point; don't lose a share
+
+
+def _pos(x) -> bool:
+    return isinstance(x, (int, float)) and math.isfinite(x) and x > 0
+
+
+def position_size(account: float, risk_pct: float, entry: float, stop: float,
+                  atr: float | None = None) -> dict:
+    if not (_pos(account) and _pos(risk_pct) and _pos(entry) and _pos(stop)):
+        return {"ok": False, "error": "missing"}
+    if risk_pct > 100:
+        return {"ok": False, "error": "risk_pct_range"}
+    if stop >= entry:
+        return {"ok": False, "error": "stop_not_below_entry"}
+    atr = atr if _pos(atr) else None
+
+    risk_budget = account * risk_pct / 100
+    risk_per_share = entry - stop
+    shares_by_risk = math.floor(risk_budget / risk_per_share + _FLOOR_EPS)
+    shares_by_cash = math.floor(account / entry + _FLOOR_EPS)
+    shares = min(shares_by_risk, shares_by_cash)
+    stop_atr = risk_per_share / atr if atr else None
+
+    warnings = []
+    if risk_pct > LEARNING_MAX_RISK_PCT:
+        warnings.append("risk_high")
+    if shares == 0:
+        warnings.append("zero_shares")
+    elif shares_by_cash < shares_by_risk:
+        warnings.append("cash_capped")
+    if stop_atr is not None and stop_atr < STOP_TIGHT_ATR:
+        warnings.append("stop_tight")
+    if stop_atr is not None and stop_atr > STOP_WIDE_ATR:
+        warnings.append("stop_wide")
+
+    return {
+        "ok": True,
+        "risk_budget": risk_budget,
+        "risk_per_share": risk_per_share,
+        "shares_by_risk": shares_by_risk,
+        "shares": shares,
+        "position_value": shares * entry,
+        "position_pct": shares * entry / account * 100,
+        "actual_risk": shares * risk_per_share,
+        "actual_risk_pct": shares * risk_per_share / account * 100,
+        "stop_pct": risk_per_share / entry * 100,
+        "stop_atr": stop_atr,
+        "gap_loss": shares * (risk_per_share + atr) if atr else None,  # if the open gaps one ATR through the stop
+        "warnings": warnings,
+    }
