@@ -41,7 +41,7 @@ takes about 3 minutes. Tick "Fetch earnings dates" to add those (1 extra credit 
 | RSI | 14-day Wilder RSI. |
 | ATR % | 14-day Wilder ATR (includes overnight gaps) as % of price. Volatility, not direction. |
 | Vol vs avg | Latest session's volume against the 20 before it. Not shown while the market is open: a partial day is not a reading. |
-| Earnings | Days until the next earnings date. Dates can be estimates; verify on investor relations. |
+| Earnings | Days until the next earnings date. Dates can be estimates; verify on investor relations. A blank cell is not "no earnings": Yahoo's calendar sometimes empties right after a report (seen on TSLA and META, Oct 26, 2026). |
 | Full view | distance to SMA20/50, position in the prior 20-day range, avg dollar volume, 1/5/20-day change, RS vs QQQ |
 
 Rows are sorted by label and then alphabetically. **This is not a ranking.**
